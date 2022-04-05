@@ -6,17 +6,18 @@ module.exports = async function (context, req) {
     let model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
     let err = ''
     err += !model ? "no data; or invalid payload in body" : '';
-    err += !model.url ? "no url" : '';
-    err += !model.action ? "no action" : '';
-    err += !model.resource ? "no resource" : '';
-    err += !model.tenantId ? "no tenand id" : '';
+    err += !model.id ? "no id" : '';
+    err += !model.lat ? "no latitude" : '';
+    err += !model.long ? "no longitude" : '';
+
+    respObj = {
+        color: 'A132BE'
+    };
 
     context.res = {
         status: err == '' ? 200 : 500,
-        body: err
+        body: respObj
     };
-
-    context.bindings.json = model;
     
     context.done(err == '' ? null : err);
 };
