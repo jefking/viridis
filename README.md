@@ -1,0 +1,2 @@
+# viridis
+Geo-colors
