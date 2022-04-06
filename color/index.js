@@ -5,7 +5,16 @@ module.exports = async function (context, req) {
     
     context.res = {
         body: {
-            color: 'A132BE'
+            color: getColorCode()
         }
     };
+}
+
+function getColorCode() {
+    const makeColorCode = '0123456789ABCDEF';
+    var code = '';
+    for (var count = 0; count < 6; count++) {
+        code += makeColorCode[Math.floor(Math.random() * 16)];
+    }
+    return code;
 }
