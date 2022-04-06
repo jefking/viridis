@@ -10,4 +10,4 @@ module.exports = async function (context, req) {
             'Content-Type': 'text/html; charset=utf-8'
         }
     };
-}
+} 
