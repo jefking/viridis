@@ -14,9 +14,15 @@ module.exports = async function (context, req) {
     model.color = model.color ?? defaultColor;
 
     //store incoming
+    dataModel = {
+        id: model.id,
+        lat: model.lat,
+        long: model.long,
+        color: parseInt(model.color, 24)
+    };
 
     //determine outgoing
-
+    //generate response from data-store
     respObj = {
         color: defaultColor
     };
