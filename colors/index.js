@@ -1,5 +1,7 @@
 //const appInsights = require("applicationinsights");
 
+const defaultColor = 'A132BE';
+
 module.exports = async function (context, req) {
     //appInsights.setup().start();
     
@@ -9,9 +11,14 @@ module.exports = async function (context, req) {
     err += !model.id ? "no id" : '';
     err += !model.lat ? "no latitude" : '';
     err += !model.long ? "no longitude" : '';
+    model.color = model.color ?? defaultColor;
+
+    //store incoming
+
+    //determine outgoing
 
     respObj = {
-        color: 'A132BE'
+        color: defaultColor
     };
 
     context.res = {
