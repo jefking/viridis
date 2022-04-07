@@ -2,7 +2,9 @@
 
 module.exports = async function (context, req) {
     //appInsights.setup().start();
-    
+    const id = req.query.id;
+    console.log('from: ' + id);
+
     context.res = {
         body: {
             color: getColorCode()

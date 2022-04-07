@@ -55,7 +55,7 @@
 </style>
 
 <body>
-    <div id="app" v-bind:style="{ backgroundColor: color}">
+    <div id="app" v-bind:style="{backgroundColor: color}">
         <h1>Viridis</h1>
         <p>Id: {{ id }}</p>
         <p>Color: {{ color }}</p>
@@ -64,19 +64,23 @@
         <div class="color">
             <input type="color" v-model="color" />
         </div>
+        <div class="send">
+            <button v-on:click="postColor">send</button>
+        </div>
     </div>
 </body>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/1.0.26/vue.min.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 <script lang="javascript">
     new Vue({
         el: '#app',
-        props: ['lat', 'long'],
-        data: () => ({
-            color: '#673AB7'
-        }),
+        props: ['lat', 'long', 'color'],
+
         created() {
             this.id = this.uuidv4();
+            const gColor = this.getColor(this.id);
+            gColor.then((c) => { this.color = c });
 
             const success = (position) => {
                 this.lat = position.coords.latitude;
@@ -95,6 +99,21 @@
                 return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
                     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
                 );
+            },
+            async getColor(id) {
+                const response = await axios.get('/api/color?id=' + id);
+                return '#' + response.data.color;
+            },
+            async postColor() {
+                const model = {
+                    id: this.id,
+                    lat: this.lat,
+                    long: this.long,
+                    color: this.color
+                };
+                axios
+                    .put('/api/colors', model)
+                    .then(response => this.color = '#' + response.data.color);
             }
         }
     })
