@@ -57,11 +57,10 @@
 <body>
     <div id="app" v-bind:style="{ backgroundColor: color}">
         <h1>Viridis</h1>
-        <p>Colors to keep you guessing.</p>
-        <p>me: {{ id }}</p>
-        <p>{{ color }}</p>
-        <p>{{ lat }}</p>
-        <p>{{ long }}</p>
+        <p>User Id: {{ id }}</p>
+        <p>Color: {{ color }}</p>
+        <p>Latitude: {{ lat }}</p>
+        <p>Longitude: {{ long }}</p>
         <div class="color">
             <input type="color" v-model="color" />
         </div>
@@ -85,7 +84,6 @@
             const success = (position) => {
                 this.lat = position.coords.latitude;
                 this.long = position.coords.longitude;
-                console.log('set: ' + this.lat, this.long);
             };
 
             const error = (err) => {
