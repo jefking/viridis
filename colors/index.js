@@ -22,7 +22,8 @@ module.exports = async function (context, req) {
     };
 
     //determine outgoing
-    //generate response from data-store
+    //generate response from data-store (Redis)
+    //-Time Delayed Average, weighted by proximity
     respObj = {
         color: getColorCode()
     };
