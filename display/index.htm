@@ -74,12 +74,10 @@
         el: '#app',
         props: ['lat', 'long'],
         data: () => ({
-            color: '',
             color: '#673AB7'
         }),
         created() {
             this.id = this.uuidv4();
-            this.color = '#673AB7';
 
             const success = (position) => {
                 this.lat = position.coords.latitude;
