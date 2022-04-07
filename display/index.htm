@@ -7,58 +7,63 @@
     <title>Colors: Viridis</title>
 </head>
 <style>
-    html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
+    @import url('https://fonts.googleapis.com/css?family=Proza+Libre|Fira+Mono');
 
-#app {
-  display: flex;
-  height: 100%;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  input {
-    padding: 1rem 1rem;
-    font-size: 2rem;
-    border: 0;
-    border-radius: 3px;
-    background: #fff;
-  }
-  
-}
+    html,
+    body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
 
-h1 {
-  font-family: 'Proza Libre', sans-serif;
-  color: #fff;
-  font-weight: 300;
-}
+    #app {
+        display: flex;
+        height: 100%;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
 
-input[type="color"]{
-  width:40px;
-  border:1px solid black;
-  margin:0px;
-  padding:0px !important;
-  height:40px;
-}
+        input {
+            padding: 1rem 1rem;
+            font-size: 2rem;
+            border: 0;
+            border-radius: 3px;
+            background: #fff;
+        }
+
+    }
+
+    h1 {
+        font-family: 'Proza Libre', sans-serif;
+        color: #fff;
+        font-weight: 300;
+    }
+
+    input[type="color"] {
+        width: 40px;
+        border: 1px solid black;
+        margin: 0px;
+        padding: 0px !important;
+        height: 40px;
+    }
 </style>
+
 <body>
     <div id="app" v-bind:style="{ backgroundColor: color}">
         <h1>Viridis</h1>
         <p>Colors to keep you guessing.</p>
         <div class="color">
-            <input type="text" v-bind:style="{ color: color}" v-model="color" maxlength="7" placeholder="#000000" />
+            <input type="text" v-bind:style="{ color: color}" v-model="color" maxlength="7" placeholder="#673AB7" />
             <input type="color" v-model="color" />
         </div>
     </div>
 </body>
-<script src="https://cdn.jsdelivr.net/npm/vue@3.2.31"></script>
-<script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/1.0.26/vue.min.js"></script>
+<script lang="javascript">
     new Vue({
         el: '#app',
-        data: { color: '#6dd588' }
+        data: { color: '#673AB7' }
     })
 </script>
-
 </html>
