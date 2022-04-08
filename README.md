@@ -1,10 +1,11 @@
 # viridis
 Geo-colors
 
+## NPM
 ```
 npm start index.js
 ```
-
+## Docker
 ```
 docker kill $(docker container ls -q)
 ```
