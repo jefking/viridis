@@ -4,7 +4,8 @@ const redis = require('redis');
 const fs = require('fs')
 
 const lastColorKey = 'lastcolor22';
-const defaultColor = 'A132BE';
+const defaultColor = randomColor();
+setColor(defaultColor);
 
 const html = fs.readFileSync('./index.htm', 'utf-8');
 
@@ -22,19 +23,18 @@ app.get('/', (req, res) => {
 app.get('/api/color', async (req, res) => {
     //appInsights.setup().start();
 
-    const id = req.query.id;
-    console.log('from: ' + id);
-
     const lastColor = await getColor();
 
-    console.log(lastColor);
-    color = lastColor || defaultColor;
-    console.log(color);
+    dataModel = {
+        color: lastColor || defaultColor,
+        id: req.query.id
+    };
+    console.log(dataModel);//Store
 
     res
         .status(200)
         .send({
-            color: color
+            color: dataModel.color
         })
         .end();
 });
@@ -61,12 +61,13 @@ app.put('/api/colors', async (req, res) => {
             long: model.long,
             color: parseInt(model.color, 24)
         };
+        console.log(dataModel);//Store
 
         //determine outgoing
         //generate response from data-store (Redis)
         //-Time Delayed Average, weighted by proximity
         respObj = {
-            color: getColorCode()
+            color: await getColor()
         };
 
         res
@@ -75,7 +76,7 @@ app.put('/api/colors', async (req, res) => {
             .end();
     }
     else {
-        console.log(err);
+        console.log(err); //Log
 
         res
             .status(500)
@@ -104,7 +105,7 @@ async function setColor(color) {
     return await client.set(lastColorKey, color);
 }
 
-function getColorCode() {
+function randomColor() {
     const makeColorCode = '0123456789ABCDEF';
     var code = '';
     for (var count = 0; count < 6; count++) {
