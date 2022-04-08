@@ -1,5 +1,11 @@
-FROM mcr.microsoft.com/azure-functions/node:4-node16-slim
+FROM node:17-alpine3.15
 
-ENV AzureWebJobsScriptRoot=/home/site/wwwroot
+WORKDIR /usr/src/app
 
 COPY ./src .
+
+RUN npm install
+
+EXPOSE 9099
+
+CMD [ "node", "index.js" ]

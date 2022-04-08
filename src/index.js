@@ -10,7 +10,7 @@ const defaultColor = 'A132BE';
 const app = express();
 
 app.get('/', (req, res) => {
-    const html = fs.readFileSync('./display/index.htm', 'utf-8')
+    const html = fs.readFileSync('./index.htm', 'utf-8')
     res = {
         // status: 200, /* Defaults to 200 */
         body: html,
@@ -20,7 +20,7 @@ app.get('/', (req, res) => {
     };
 });
 
-app.get('/api/color', (req, res) => {
+app.get('/api/color', async (req, res) => {
     //appInsights.setup().start();
     const id = req.query.id;
     console.log('from: ' + id);
@@ -37,7 +37,7 @@ app.get('/api/color', (req, res) => {
     };
 });
 
-app.put('/api/colors', (req, res) => {
+app.put('/api/colors', async (req, res) => {
     //appInsights.setup().start();
 
     let model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
@@ -74,7 +74,7 @@ app.put('/api/colors', (req, res) => {
 });
 
 //Listen port
-const PORT = 8080;
+const PORT = 9099;
 app.listen(PORT);
 console.log(`Running on port ${PORT}`);
 

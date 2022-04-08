@@ -1,5 +1,4 @@
 {
-
   "name": "viridis",
   "version": "alpha-0.0.1",
   "description": "viridis, colors",
@@ -9,7 +8,7 @@
   },
   "author": "",
   "dependencies": {
-    "express":"^4.17.3",
+    "express": "^4.17.3",
     "applicationinsights": "^2.3.1",
     "redis": "^4.0.6",
     "fs": "^0.0.1-security"
