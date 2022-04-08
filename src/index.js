@@ -6,13 +6,13 @@ const fs = require('fs')
 const lastColorKey = 'lastcolor22';
 const defaultColor = 'A132BE';
 
+const html = fs.readFileSync('./index.htm', 'utf-8');
+
 //Create an app
 const app = express();
 app.use(express.json());
 
 app.get('/', (req, res) => {
-    const html = fs.readFileSync('./index.htm', 'utf-8');
-
     res
         .status(200)
         .send(html)
@@ -21,10 +21,10 @@ app.get('/', (req, res) => {
 
 app.get('/api/color', async (req, res) => {
     //appInsights.setup().start();
+
     const id = req.query.id;
     console.log('from: ' + id);
 
-    const defaultColor = 'A132BE';
     const lastColor = await getColor();
 
     console.log(lastColor);
@@ -42,22 +42,18 @@ app.get('/api/color', async (req, res) => {
 app.put('/api/colors', async (req, res) => {
     //appInsights.setup().start();
 
-    let model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
+    const model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
     let err = ''
     err += !model ? "no data; or invalid payload in body. " : '';
     err += !model.id ? "no id. " : '';
     err += !model.lat ? "no latitude. " : '';
     err += !model.long ? "no longitude. " : '';
-    model.color = (model.color ?? defaultColor).replace("#", '');
 
-    if (err == ''){
-        res
-            .status(500)
-            .end();
-    }
-    else{
+    if (0 === err.length) {
+        model.color = (model.color ?? defaultColor).replace("#", '');
+
         await setColor(model.color);
-    
+
         //store incoming
         dataModel = {
             id: model.id,
@@ -65,17 +61,24 @@ app.put('/api/colors', async (req, res) => {
             long: model.long,
             color: parseInt(model.color, 24)
         };
-    
+
         //determine outgoing
         //generate response from data-store (Redis)
         //-Time Delayed Average, weighted by proximity
         respObj = {
             color: getColorCode()
         };
-    
+
         res
             .status(200)
             .send(respObj)
+            .end();
+    }
+    else {
+        console.log(err);
+
+        res
+            .status(500)
             .end();
     }
 });
