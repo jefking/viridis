@@ -1,6 +1,7 @@
 const appInsights = require("applicationinsights");
 const redis = require('redis');
 
+const lastColorKey = 'lastcolor22';
 const defaultColor = 'A132BE';
 
 module.exports = async function (context, req) {
@@ -12,7 +13,9 @@ module.exports = async function (context, req) {
     err += !model.id ? "no id. " : '';
     err += !model.lat ? "no latitude. " : '';
     err += !model.long ? "no longitude. " : '';
-    model.color = model.color ?? defaultColor;
+    model.color = (model.color ?? defaultColor).replace("#", '');
+
+    await setColor(model.color);
 
     //store incoming
     dataModel = {
@@ -36,6 +39,15 @@ module.exports = async function (context, req) {
 
     context.done(err == '' ? null : err);
 };
+
+async function setColor(color)
+{
+    const lastColorKey = 'lastcolor22';
+    const client = redis.createClient();
+    await client.connect();
+
+    return await client.set(lastColorKey, color);
+}
 
 function getColorCode() {
     const makeColorCode = '0123456789ABCDEF';

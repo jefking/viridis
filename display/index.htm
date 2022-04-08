@@ -109,7 +109,7 @@
                     id: this.id,
                     lat: this.lat,
                     long: this.long,
-                    color: this.color
+                    color: this.color.replace("#", '')
                 };
                 axios
                     .put('/api/colors', model)

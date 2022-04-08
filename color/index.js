@@ -6,18 +6,23 @@ module.exports = async function (context, req) {
     const id = req.query.id;
     console.log('from: ' + id);
 
+    const defaultColor = 'A132BE';
+    const lastColor = await getColor();
+
+    console.log(lastColor);
+
     context.res = {
         body: {
-            color: getColorCode()
+            color: lastColor || defaultColor
         }
     };
 }
 
-function getColorCode() {
-    const makeColorCode = '0123456789ABCDEF';
-    var code = '';
-    for (var count = 0; count < 6; count++) {
-        code += makeColorCode[Math.floor(Math.random() * 16)];
-    }
-    return code;
+async function getColor()
+{
+    const lastColorKey = 'lastcolor22';
+    const client = redis.createClient();
+    await client.connect();
+
+    return await client.get(lastColorKey);
 }
