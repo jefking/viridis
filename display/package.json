@@ -1,8 +1,0 @@
-{
-    "name": "viridis-colors",
-    "version": "alpha-0.0.1",
-    "dependencies": {
-        "fs": "^0.0.1-security",
-        "applicationinsights": "^2.3.1"
-    }
-}

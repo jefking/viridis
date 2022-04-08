@@ -1,10 +1,43 @@
+const express = require('express');
 const appInsights = require("applicationinsights");
 const redis = require('redis');
+const fs = require('fs')
 
 const lastColorKey = 'lastcolor22';
 const defaultColor = 'A132BE';
 
-module.exports = async function (context, req) {
+//Create an app
+const app = express();
+
+app.get('/', (req, res) => {
+    const html = fs.readFileSync('./display/index.htm', 'utf-8')
+    res = {
+        // status: 200, /* Defaults to 200 */
+        body: html,
+        headers: {
+            'Content-Type': 'text/html; charset=utf-8'
+        }
+    };
+});
+
+app.get('/api/color', (req, res) => {
+    //appInsights.setup().start();
+    const id = req.query.id;
+    console.log('from: ' + id);
+
+    const defaultColor = 'A132BE';
+    const lastColor = await getColor();
+
+    console.log(lastColor);
+
+    res = {
+        body: {
+            color: lastColor || defaultColor
+        }
+    };
+});
+
+app.put('/api/colors', (req, res) => {
     //appInsights.setup().start();
 
     let model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
@@ -38,10 +71,22 @@ module.exports = async function (context, req) {
     };
 
     context.done(err == '' ? null : err);
-};
+});
 
-async function setColor(color)
-{
+//Listen port
+const PORT = 8080;
+app.listen(PORT);
+console.log(`Running on port ${PORT}`);
+
+async function getColor() {
+    const lastColorKey = 'lastcolor22';
+    const client = redis.createClient();
+    await client.connect();
+
+    return await client.get(lastColorKey);
+}
+
+async function setColor(color) {
     const lastColorKey = 'lastcolor22';
     const client = redis.createClient();
     await client.connect();
