@@ -1,4 +1,5 @@
-//const appInsights = require("applicationinsights");
+const appInsights = require("applicationinsights");
+const redis = require('redis');
 
 const defaultColor = 'A132BE';
 
