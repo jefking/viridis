@@ -8,16 +8,15 @@ const defaultColor = 'A132BE';
 
 //Create an app
 const app = express();
+app.use(express.json());
 
 app.get('/', (req, res) => {
-    const html = fs.readFileSync('./index.htm', 'utf-8')
-    res = {
-        // status: 200, /* Defaults to 200 */
-        body: html,
-        headers: {
-            'Content-Type': 'text/html; charset=utf-8'
-        }
-    };
+    const html = fs.readFileSync('./index.htm', 'utf-8');
+
+    res
+        .status(200)
+        .send(html)
+        .end();
 });
 
 app.get('/api/color', async (req, res) => {
@@ -29,12 +28,15 @@ app.get('/api/color', async (req, res) => {
     const lastColor = await getColor();
 
     console.log(lastColor);
+    color = lastColor || defaultColor;
+    console.log(color);
 
-    res = {
-        body: {
-            color: lastColor || defaultColor
-        }
-    };
+    res
+        .status(200)
+        .send({
+            color: color
+        })
+        .end();
 });
 
 app.put('/api/colors', async (req, res) => {
@@ -48,29 +50,34 @@ app.put('/api/colors', async (req, res) => {
     err += !model.long ? "no longitude. " : '';
     model.color = (model.color ?? defaultColor).replace("#", '');
 
-    await setColor(model.color);
-
-    //store incoming
-    dataModel = {
-        id: model.id,
-        lat: model.lat,
-        long: model.long,
-        color: parseInt(model.color, 24)
-    };
-
-    //determine outgoing
-    //generate response from data-store (Redis)
-    //-Time Delayed Average, weighted by proximity
-    respObj = {
-        color: getColorCode()
-    };
-
-    context.res = {
-        status: err == '' ? 200 : 500,
-        body: respObj
-    };
-
-    context.done(err == '' ? null : err);
+    if (err == ''){
+        res
+            .status(500)
+            .end();
+    }
+    else{
+        await setColor(model.color);
+    
+        //store incoming
+        dataModel = {
+            id: model.id,
+            lat: model.lat,
+            long: model.long,
+            color: parseInt(model.color, 24)
+        };
+    
+        //determine outgoing
+        //generate response from data-store (Redis)
+        //-Time Delayed Average, weighted by proximity
+        respObj = {
+            color: getColorCode()
+        };
+    
+        res
+            .status(200)
+            .send(respObj)
+            .end();
+    }
 });
 
 //Listen port
