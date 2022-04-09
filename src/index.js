@@ -23,7 +23,14 @@ const rClient = redis.createClient(conVars);
 rClient.connect();
 
 const rtsClient = new redisTimeSeries(conVars);
-const rtsKey = 'colors';
+const rtsKey = 'color22';
+
+const startRedisTimeSeries = async () => {
+    await rtsClient.connect();
+    await rtsClient.create(rtsKey).retention(60000).send();
+};
+startRedisTimeSeries();
+
 
 //Log Variables
 console.log(`Configuration: Express:${port}, Redis:${JSON.stringify(conVars)}`);
@@ -155,7 +162,8 @@ async function getColor() {
 
 async function setColor(color) {
     colorInt = parseInt(color.replace("#", ''), 16);
-    return await rClient.set(lastColorKey, colorInt);
+    await rtsClient.add(rtsKey, Date.now(), colorInt).send(); //Time Series
+    await rClient.set(lastColorKey, colorInt); //Last Color
 }
 
 function randomColorHex() {
