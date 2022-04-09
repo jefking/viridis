@@ -106,7 +106,7 @@ async function set(model) {
     model.color = parseInt((model.color ?? defaultColor).replace("#", ''), 24);
 
     //Comment out Redis to get websockets working
-    //await setColor(model.color);
+    await setColor(model.color);
 
     //store incoming
     dataModel = {
