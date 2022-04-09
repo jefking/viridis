@@ -2,6 +2,7 @@ const express = require('express');
 const expressWs = require('express-ws');
 const http = require('http');
 const redis = require('redis');
+const redisTimeSeries = require('redistimeseries-js');
 const fs = require('fs');
 const { env } = require('process');
 const { response } = require('express');
@@ -10,13 +11,19 @@ const { response } = require('express');
  * Variables
  */
 const port = 9099;
+const makeColorCode = '0123456789ABCDEF';
 const lastColorKey = 'lastcolor22';
-const defaultColor = randomColor();
+const defaultColor = randomColorHex();
 const conVars = {
     url: process.env.REDIS_URL || '127.0.0.1:6379'
 };
 let connections = [];
 const html = fs.readFileSync('./index.htm', 'utf-8');
+const rClient = redis.createClient(conVars);
+rClient.connect();
+
+const rtsClient = new redisTimeSeries(conVars);
+const rtsKey = 'colors';
 
 //Log Variables
 console.log(`Configuration: Express:${port}, Redis:${JSON.stringify(conVars)}`);
@@ -137,30 +144,21 @@ async function set(model) {
     //generate response from data-store (Redis)
     //-Time Delayed Average, weighted by proximity
     return {
-        color: randomColor()
+        color: randomColorHex()
     };
 }
 
 async function getColor() {
-    const lastColorKey = 'lastcolor22';
-    const client = redis.createClient(conVars);
-    await client.connect();
-
-    const lastColor = await client.get(lastColorKey);
+    const lastColor = await rClient.get(lastColorKey);
     return parseInt(lastColor).toString(16);
 }
 
 async function setColor(color) {
-    const lastColorKey = 'lastcolor22';
-    const client = redis.createClient(conVars);
-    await client.connect();
-
     colorInt = parseInt(color.replace("#", ''), 16);
-    return await client.set(lastColorKey, colorInt);
+    return await rClient.set(lastColorKey, colorInt);
 }
 
-function randomColor() {
-    const makeColorCode = '0123456789ABCDEF';
+function randomColorHex() {
     var code = '';
     for (var count = 0; count < 6; count++) {
         code += makeColorCode[Math.floor(Math.random() * 16)];
