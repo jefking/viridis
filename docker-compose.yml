@@ -1,0 +1,17 @@
+version: '3'
+services:
+  redis:
+    image: 'redis/redis-stack-server:latest'
+    container_name: redis
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+  viridis:
+    build: .
+    depends_on:
+      - redis
+    links:
+      - redis
+    ports:
+      - 9099:9099
+    environment:
+      - REDIS_URL=redis://redis:6379
