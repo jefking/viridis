@@ -41,18 +41,18 @@ app.get('/', (req, res) => {
 
 app.get('/api/color', async (req, res) => {
     const lastColor = await getColor();
-
     dataModel = {
         color: lastColor || defaultColor,
         id: req.query.id
     };
     console.log(dataModel);//Store
 
+    const respObj = {
+        color: dataModel.color
+    };
     res
         .status(200)
-        .send({
-            color: dataModel.color
-        })
+        .send(respObj)
         .end();
 });
 
@@ -64,7 +64,6 @@ app.ws('/ws/color', async function (ws, req) {
         model = JSON.parse(msg);
         let err = validate(model);
         if (0 === err.length) {
-            //Validation
             const respObj = await set(model);
 
             const message = JSON.stringify(respObj);
@@ -74,7 +73,7 @@ app.ws('/ws/color', async function (ws, req) {
                 ws.send(message)
             });
         }
-        else{
+        else {
             console.log(err); //Log
         }
     });
@@ -120,11 +119,10 @@ function validate(model) {
     }
     return err;
 }
-async function set(model) {
-    model.color = parseInt((model.color ?? defaultColor).replace("#", ''), 24);
 
+async function set(model) {
     //Comment out Redis to get websockets working
-    await setColor(model.color);
+    await setColor(model.color ?? defaultColor);
 
     //store incoming
     dataModel = {
@@ -148,7 +146,8 @@ async function getColor() {
     const client = redis.createClient(conVars);
     await client.connect();
 
-    return await client.get(lastColorKey);
+    const lastColor = await client.get(lastColorKey);
+    return parseInt(lastColor).toString(16);
 }
 
 async function setColor(color) {
@@ -156,7 +155,8 @@ async function setColor(color) {
     const client = redis.createClient(conVars);
     await client.connect();
 
-    return await client.set(lastColorKey, color);
+    colorInt = parseInt(color.replace("#", ''), 16);
+    return await client.set(lastColorKey, colorInt);
 }
 
 function randomColor() {

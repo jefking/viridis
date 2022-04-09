@@ -79,7 +79,7 @@
         created() {
             this.id = this.uuidv4();
             const gColor = this.getColor(this.id);
-            gColor.then((c) => { this.color = c });
+            gColor.then((c) => { this.color = '#' + c });
 
             this.socket = new WebSocket('ws://127.0.0.1:9099/ws/color');
 
@@ -108,7 +108,7 @@
             },
             async getColor(id) {
                 const response = await axios.get('/api/color?id=' + id);
-                return '#' + response.data.color;
+                return response.data.color;
             },
             async send() {
                 const model = {
