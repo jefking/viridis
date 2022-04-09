@@ -9,8 +9,9 @@
   "author": "Jef King",
   "dependencies": {
     "express": "^4.17.3",
+    "express-ws": "^5.0.2",
     "fs": "^0.0.1-security",
-    "redis": "^4.0.6",
-    "ws": "^8.5.0"
+    "http": "^0.0.1-security",
+    "redis": "^4.0.6"
   }
 }

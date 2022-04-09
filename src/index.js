@@ -1,39 +1,33 @@
 const express = require('express');
-const WebSocket = require('ws');
+const expressWs = require('express-ws');
+const http = require('http');
 const redis = require('redis');
 const fs = require('fs');
 const { env } = require('process');
+const { response } = require('express');
 
 /**
  * Variables
  */
-const exPort = 9099;
-const wsPort = 9100;
+const port = 9099;
 const lastColorKey = 'lastcolor22';
 const defaultColor = randomColor();
 const conVars = {
     url: process.env.REDIS_URL || '127.0.0.1:6379'
 };
+let connections = [];
 const html = fs.readFileSync('./index.htm', 'utf-8');
 
 //Log Variables
-console.log(`Ports: Express/${exPort}, WebSockets/${wsPort}`);
-console.log(`Configuration: Redis/${conVars}`);
+console.log(`Configuration: Express:${port}, Redis:${JSON.stringify(conVars)}`);
 
 /**
  * Init Application
  */
-// Express
 const app = express();
 app.use(express.json());
-app.listen(exPort);
-
-// WebSockets
-const server = new WebSocket.Server({
-    port: wsPort
-});
-
-//setColor(defaultColor);
+const server = http.createServer(app).listen(port);
+expressWs(app, server);
 
 /**
  * Express
@@ -62,6 +56,24 @@ app.get('/api/color', async (req, res) => {
         .end();
 });
 
+// Get the /ws websocket route
+app.ws('/ws/color', async function (ws, req) {
+    connections.push(ws);
+
+    ws.on('message', async function (msg) {
+        model = JSON.parse(msg);
+        //Validation
+        const respObj = await set(model);
+
+        const message = JSON.stringify(respObj);
+
+        connections.forEach((ws) => {
+            //if the connections are objects with info use something like ws.ws.send()
+            ws.send(message)
+        })
+    });
+});
+
 app.put('/api/color', async (req, res) => {
     const model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
     let err = ''
@@ -71,25 +83,7 @@ app.put('/api/color', async (req, res) => {
     err += !model.long ? "no longitude. " : '';
 
     if (0 === err.length) {
-        model.color = (model.color ?? defaultColor).replace("#", '');
-
-        await setColor(model.color);
-
-        //store incoming
-        dataModel = {
-            id: model.id,
-            lat: model.lat,
-            long: model.long,
-            color: parseInt(model.color, 24)
-        };
-        console.log(dataModel);//Store
-
-        //determine outgoing
-        //generate response from data-store (Redis)
-        //-Time Delayed Average, weighted by proximity
-        respObj = {
-            color: await getColor()
-        };
+        respObj = set(model);
 
         res
             .status(200)
@@ -106,26 +100,31 @@ app.put('/api/color', async (req, res) => {
 });
 
 /**
- * Web Sockets
- */
-let sockets = [];
-server.on('connection', function (socket) {
-    sockets.push(socket);
-
-    // When you receive a message, send that message to every socket.
-    socket.on('message', function (msg) {
-        sockets.forEach(s => s.send(msg));
-    });
-
-    // When a socket closes, or disconnects, remove it from the array.
-    socket.on('close', function () {
-        sockets = sockets.filter(s => s !== socket);
-    });
-});
-
-/**
  * Functions
  */
+async function set(model) {
+    model.color = parseInt((model.color ?? defaultColor).replace("#", ''), 24);
+
+    //Comment out Redis to get websockets working
+    //await setColor(model.color);
+
+    //store incoming
+    dataModel = {
+        id: model.id,
+        lat: model.lat,
+        long: model.long,
+        color: model.color
+    };
+    console.log(dataModel);//Store
+
+    //determine outgoing
+    //generate response from data-store (Redis)
+    //-Time Delayed Average, weighted by proximity
+    return {
+        color: randomColor()
+    };
+}
+
 async function getColor() {
     const lastColorKey = 'lastcolor22';
     const client = redis.createClient(conVars);

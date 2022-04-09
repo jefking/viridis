@@ -65,7 +65,7 @@
             <input type="color" v-model="color" />
         </div>
         <div class="send">
-            <button v-on:click="postColor">send</button>
+            <button v-on:click="send">send</button>
         </div>
     </div>
 </body>
@@ -75,24 +75,30 @@
 <script lang="javascript">
     new Vue({
         el: '#app',
-        props: ['lat', 'long', 'color'],
-
+        props: ['lat', 'long', 'color', 'wsColor', 'socket'],
         created() {
             this.id = this.uuidv4();
             const gColor = this.getColor(this.id);
             gColor.then((c) => { this.color = c });
 
-            const success = (position) => {
+            this.socket = new WebSocket('ws://127.0.0.1:9099/ws/color');
+
+            this.socket.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                this.color = '#' + msg.color
+            };
+
+            const posSuccess = (position) => {
                 this.lat = position.coords.latitude;
                 this.long = position.coords.longitude;
             };
 
-            const error = (err) => {
+            const posError = (err) => {
                 console.log(error)
             };
 
             // This will open permission popup
-            navigator.geolocation.getCurrentPosition(success, error);
+            navigator.geolocation.getCurrentPosition(posSuccess, posError);
         },
         methods: {
             uuidv4() {
@@ -104,17 +110,48 @@
                 const response = await axios.get('/api/color?id=' + id);
                 return '#' + response.data.color;
             },
-            async postColor() {
+            async send() {
                 const model = {
                     id: this.id,
                     lat: this.lat,
                     long: this.long,
                     color: this.color.replace("#", '')
                 };
-                axios
-                    .put('/api/color', model)
-                    .then(response => this.color = '#' + response.data.color);
+                await this.sendMessage(JSON.stringify(model));
+            },
+            waitForOpenConnection: function () {
+                // We use this to measure how many times we have tried to connect to the websocket server
+                // If it fails, it throws an error.
+                return new Promise((resolve, reject) => {
+                    const maxNumberOfAttempts = 10
+                    const intervalTime = 200
+
+                    let currentAttempt = 0
+                    const interval = setInterval(() => {
+                        if (currentAttempt > maxNumberOfAttempts - 1) {
+                            clearInterval(interval)
+                            reject(new Error('Maximum number of attempts exceeded.'));
+                        } else if (this.socket.readyState === this.socket.OPEN) {
+                            clearInterval(interval)
+                            resolve()
+                        }
+                        currentAttempt++
+                    }, intervalTime)
+                })
+            },
+            sendMessage: async function (message) {
+                // We use a custom send message function, so that we can maintain reliable connection with the
+                // websocket server.
+                if (this.socket.readyState !== this.socket.OPEN) {
+                    try {
+                        await this.waitForOpenConnection(this.socket)
+                        this.socket.send(message)
+                    } catch (err) { console.error(err) }
+                } else {
+                    this.socket.send(message)
+                }
             }
+
         }
     })
 </script>
