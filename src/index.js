@@ -178,17 +178,17 @@ async function getAverageColor() {
     console.log("to" + toTimestamp);//Temp
 
     let colorsResponse = await rClient.ts.range(rtsKey, fromTimestamp, toTimestamp, {
-        // Group into 10 second averages.
-        // AGGREGATION: {
-        //     type: TimeSeriesAggregationType.AVERAGE,
-        //     timeBucket: 10000
-        // }
+        // Group into 60 second averages.
+        AGGREGATION: {
+            type: TimeSeriesAggregationType.AVERAGE,
+            timeBucket: 60000
+        }
     });
     console.log("avg: " + JSON.stringify(colorsResponse));//Temp
     if (colorsResponse.length > 0) {
         //console.log(JSON.stringify(colorAvg));//Temp
-        console.log(colorsResponse[0].value);//Temp
-        return parseInt(colorsResponse[0].value).toString(16);
+        console.log("color response:" + colorsResponse[colorsResponse.length -1].value);//Temp
+        return parseInt(colorsResponse[colorsResponse.length -1].value).toString(16);
     }
     else{
         let c =randomColorHex(); 
