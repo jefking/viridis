@@ -62,25 +62,27 @@ app.ws('/ws/color', async function (ws, req) {
 
     ws.on('message', async function (msg) {
         model = JSON.parse(msg);
-        //Validation
-        const respObj = await set(model);
+        let err = validate(model);
+        if (0 === err.length) {
+            //Validation
+            const respObj = await set(model);
 
-        const message = JSON.stringify(respObj);
+            const message = JSON.stringify(respObj);
 
-        connections.forEach((ws) => {
-            //if the connections are objects with info use something like ws.ws.send()
-            ws.send(message)
-        })
+            connections.forEach((ws) => {
+                //if the connections are objects with info use something like ws.ws.send()
+                ws.send(message)
+            });
+        }
+        else{
+            console.log(err); //Log
+        }
     });
 });
 
 app.put('/api/color', async (req, res) => {
     const model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
-    let err = ''
-    err += !model ? "no data; or invalid payload in body. " : '';
-    err += !model.id ? "no id. " : '';
-    err += !model.lat ? "no latitude. " : '';
-    err += !model.long ? "no longitude. " : '';
+    let err = validate(model);
 
     if (0 === err.length) {
         respObj = set(model);
@@ -102,6 +104,22 @@ app.put('/api/color', async (req, res) => {
 /**
  * Functions
  */
+function validate(model) {
+    let err = []
+    if (!model) {
+        err.push("no data; or invalid payload in body.");
+    }
+    if (!model.id) {
+        err.push("no id");
+    }
+    if (!model.lat) {
+        err.push("no latitude");
+    }
+    if (!model.long) {
+        err.push("no longitude");
+    }
+    return err;
+}
 async function set(model) {
     model.color = parseInt((model.color ?? defaultColor).replace("#", ''), 24);
 
