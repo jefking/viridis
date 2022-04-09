@@ -1,13 +1,43 @@
 const express = require('express');
-const appInsights = require("applicationinsights");
+const WebSocket = require('ws');
 const redis = require('redis');
 const fs = require('fs');
 const { env } = require('process');
 
-//Create an app
+/**
+ * Variables
+ */
+const exPort = 9099;
+const wsPort = 9100;
+const lastColorKey = 'lastcolor22';
+const defaultColor = randomColor();
+const conVars = {
+    url: process.env.REDIS_URL || '127.0.0.1:6379'
+};
+const html = fs.readFileSync('./index.htm', 'utf-8');
+
+//Log Variables
+console.log(`Ports: Express/${exPort}, WebSockets/${wsPort}`);
+console.log(`Configuration: Redis/${conVars}`);
+
+/**
+ * Init Application
+ */
+// Express
 const app = express();
 app.use(express.json());
+app.listen(exPort);
 
+// WebSockets
+const server = new WebSocket.Server({
+    port: wsPort
+});
+
+//setColor(defaultColor);
+
+/**
+ * Express
+ */
 app.get('/', (req, res) => {
     res
         .status(200)
@@ -16,8 +46,6 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/color', async (req, res) => {
-    //appInsights.setup().start();
-
     const lastColor = await getColor();
 
     dataModel = {
@@ -34,9 +62,7 @@ app.get('/api/color', async (req, res) => {
         .end();
 });
 
-app.put('/api/colors', async (req, res) => {
-    //appInsights.setup().start();
-
+app.put('/api/color', async (req, res) => {
     const model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
     let err = ''
     err += !model ? "no data; or invalid payload in body. " : '';
@@ -79,21 +105,27 @@ app.put('/api/colors', async (req, res) => {
     }
 });
 
-const lastColorKey = 'lastcolor22';
-const defaultColor = randomColor();
-const conVars = {
-    url: process.env.REDIS_URL || '127.0.0.1:6379'
-};
+/**
+ * Web Sockets
+ */
+let sockets = [];
+server.on('connection', function (socket) {
+    sockets.push(socket);
 
-const html = fs.readFileSync('./index.htm', 'utf-8');
+    // When you receive a message, send that message to every socket.
+    socket.on('message', function (msg) {
+        sockets.forEach(s => s.send(msg));
+    });
 
-//Listen port
-const PORT = 9099;
-app.listen(PORT);
-console.log(`Running on port ${PORT}`);
-console.log(conVars);
-//setColor(defaultColor);
+    // When a socket closes, or disconnects, remove it from the array.
+    socket.on('close', function () {
+        sockets = sockets.filter(s => s !== socket);
+    });
+});
 
+/**
+ * Functions
+ */
 async function getColor() {
     const lastColorKey = 'lastcolor22';
     const client = redis.createClient(conVars);

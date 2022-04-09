@@ -112,7 +112,7 @@
                     color: this.color.replace("#", '')
                 };
                 axios
-                    .put('/api/colors', model)
+                    .put('/api/color', model)
                     .then(response => this.color = '#' + response.data.color);
             }
         }
