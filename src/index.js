@@ -2,7 +2,7 @@ const express = require('express');
 const expressWs = require('express-ws');
 const http = require('http');
 const redis = require('redis');
-const redisTimeSeries = require('redistimeseries-js');
+const { TimeSeriesDuplicatePolicies, TimeSeriesEncoding, TimeSeriesAggregationType } = require('@node-redis/time-series');
 const fs = require('fs');
 const { env } = require('process');
 const { response } = require('express');
@@ -18,19 +18,19 @@ const conVars = {
     url: process.env.REDIS_URL || '127.0.0.1:6379'
 };
 let connections = [];
-const html = fs.readFileSync('./index.htm', 'utf-8');
-const rClient = redis.createClient(conVars);
-rClient.connect();
 
-const rtsClient = new redisTimeSeries(conVars);
-const rtsKey = 'color22';
-
-const startRedisTimeSeries = async () => {
-    await rtsClient.connect();
-    await rtsClient.create(rtsKey).retention(60000).send();
+const rtsKey = 'color11';
+const startRedisTimeSeries = async (client) => {
+    try {
+        await client.ts.create(rtsKey, {
+            RETENTION: 86400000, // 1 day in milliseconds
+            ENCODING: TimeSeriesEncoding.UNCOMPRESSED, // No compression
+            DUPLICATE_POLICY: TimeSeriesDuplicatePolicies.BLOCK // No duplicates
+        });
+    } catch (err) {
+        console.error(err);
+    }
 };
-startRedisTimeSeries();
-
 
 //Log Variables
 console.log(`Configuration: Express:${port}, Redis:${JSON.stringify(conVars)}`);
@@ -38,6 +38,11 @@ console.log(`Configuration: Express:${port}, Redis:${JSON.stringify(conVars)}`);
 /**
  * Init Application
  */
+const html = fs.readFileSync('./index.htm', 'utf-8');
+const rClient = redis.createClient(conVars);
+rClient.connect();
+startRedisTimeSeries(rClient);
+
 const app = express();
 app.use(express.json());
 const server = http.createServer(app).listen(port);
@@ -54,12 +59,12 @@ app.get('/', (req, res) => {
 });
 
 app.get('/api/color', async (req, res) => {
-    const lastColor = await getColor();
+    let lastColor = await getColor();
     dataModel = {
-        color: lastColor || defaultColor,
+        color: lastColor ?? defaultColor,
         id: req.query.id
     };
-    console.log(dataModel);//Store
+    //console.log(dataModel);//Store
 
     const respObj = {
         color: dataModel.color
@@ -75,6 +80,9 @@ app.ws('/ws/color', async function (ws, req) {
     connections.push(ws);
 
     ws.on('message', async function (msg) {
+        const tsInfo = await rClient.ts.info(rtsKey);//Temp
+        console.log(tsInfo);//Temp
+        
         model = JSON.parse(msg);
         let err = validate(model);
         if (0 === err.length) {
@@ -83,12 +91,11 @@ app.ws('/ws/color', async function (ws, req) {
             const message = JSON.stringify(respObj);
 
             connections.forEach((ws) => {
-                //if the connections are objects with info use something like ws.ws.send()
                 ws.send(message)
             });
         }
         else {
-            console.log(err); //Log
+            console.error(err); //Log
         }
     });
 });
@@ -106,7 +113,7 @@ app.put('/api/color', async (req, res) => {
             .end();
     }
     else {
-        console.log(err); //Log
+        console.error(err); //Log
 
         res
             .status(500)
@@ -145,25 +152,58 @@ async function set(model) {
         long: model.long,
         color: model.color
     };
-    console.log(dataModel);//Store
+    //console.log(dataModel);//Store
 
     //determine outgoing
     //generate response from data-store (Redis)
     //-Time Delayed Average, weighted by proximity
+    const color = await getAverageColor();
+    console.log("avg color: " + color);
     return {
-        color: randomColorHex()
+        color: color
     };
 }
 
 async function getColor() {
-    const lastColor = await rClient.get(lastColorKey);
-    return parseInt(lastColor).toString(16);
+    let lastColor = await rClient.ts.get(rtsKey);
+    console.log("get: "+lastColor.value);//TEMP
+    let colorHex = parseInt(lastColor.value).toString(16);
+    console.log("get hex: "+colorHex);//TEMP
+    return colorHex;
+}
+async function getAverageColor() {
+    let fromTimestamp = new Date().setDate(-1).valueOf();
+    let toTimestamp = new Date().valueOf();
+    console.log("fr" + fromTimestamp);//Temp
+    console.log("to" + toTimestamp);//Temp
+
+    let colorsResponse = await rClient.ts.range(rtsKey, fromTimestamp, toTimestamp, {
+        // Group into 10 second averages.
+        // AGGREGATION: {
+        //     type: TimeSeriesAggregationType.AVERAGE,
+        //     timeBucket: 10000
+        // }
+    });
+    console.log("avg: " + JSON.stringify(colorsResponse));//Temp
+    if (colorsResponse.length > 0) {
+        //console.log(JSON.stringify(colorAvg));//Temp
+        console.log(colorsResponse[0].value);//Temp
+        return parseInt(colorsResponse[0].value).toString(16);
+    }
+    else{
+        let c =randomColorHex(); 
+        console.log("!random!: " + c);
+        return c;
+    }
 }
 
 async function setColor(color) {
-    colorInt = parseInt(color.replace("#", ''), 16);
-    await rtsClient.add(rtsKey, Date.now(), colorInt).send(); //Time Series
-    await rClient.set(lastColorKey, colorInt); //Last Color
+    //console.log("set color: " + color);
+    let colorInt = parseInt(color.replace("#", ''), 16);
+    let at = new Date().setHours(0);
+    //console.log("set color int: " + colorInt);
+    await rClient.ts.add(rtsKey, at, colorInt);//Time Series
+    //await rClient.set(lastColorKey, colorInt); //Last Color
 }
 
 function randomColorHex() {

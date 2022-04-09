@@ -8,11 +8,11 @@
   },
   "author": "Jef King",
   "dependencies": {
+    "@node-redis/time-series": "^1.0.2",
     "express": "^4.17.3",
     "express-ws": "^5.0.2",
     "fs": "^0.0.1-security",
     "http": "^0.0.1-security",
-    "redis": "^4.0.6",
-    "redistimeseries-js": "^2.3.1"
+    "redis": "^4.0.6"
   }
 }
