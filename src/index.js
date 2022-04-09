@@ -1,13 +1,8 @@
 const express = require('express');
 const appInsights = require("applicationinsights");
 const redis = require('redis');
-const fs = require('fs')
-
-const lastColorKey = 'lastcolor22';
-const defaultColor = randomColor();
-setColor(defaultColor);
-
-const html = fs.readFileSync('./index.htm', 'utf-8');
+const fs = require('fs');
+const { env } = require('process');
 
 //Create an app
 const app = express();
@@ -84,14 +79,24 @@ app.put('/api/colors', async (req, res) => {
     }
 });
 
+const lastColorKey = 'lastcolor22';
+const defaultColor = randomColor();
+const conVars = {
+    url: process.env.REDIS_URL || '127.0.0.1:6379'
+};
+
+const html = fs.readFileSync('./index.htm', 'utf-8');
+
 //Listen port
 const PORT = 9099;
 app.listen(PORT);
 console.log(`Running on port ${PORT}`);
+console.log(conVars);
+//setColor(defaultColor);
 
 async function getColor() {
     const lastColorKey = 'lastcolor22';
-    const client = redis.createClient();
+    const client = redis.createClient(conVars);
     await client.connect();
 
     return await client.get(lastColorKey);
@@ -99,7 +104,7 @@ async function getColor() {
 
 async function setColor(color) {
     const lastColorKey = 'lastcolor22';
-    const client = redis.createClient();
+    const client = redis.createClient(conVars);
     await client.connect();
 
     return await client.set(lastColorKey, color);
