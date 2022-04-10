@@ -184,11 +184,16 @@ async function getAverageColor() {
             timeBucket: 360000
         }
     });
-    console.log("avg: " + JSON.stringify(colorsResponse));//Temp
+    //console.log("avg: " + JSON.stringify(colorsResponse));//Temp
     if (colorsResponse.length > 0) {
         //console.log(JSON.stringify(colorAvg));//Temp
-        console.log("color response:" + colorsResponse[colorsResponse.length -1].value);//Temp
-        return parseInt(colorsResponse[colorsResponse.length -1].value).toString(16);
+        let color = 0;
+        colorsResponse.forEach((item, index, arr) =>{
+            color += item.value;
+        });
+        color = color / colorsResponse.length;
+        console.log("color:" + color);//Temp
+        return Math.round(color).toString(16);
     }
     else{
         let c =randomColorHex(); 
