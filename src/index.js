@@ -12,7 +12,6 @@ const { response } = require('express');
  */
 const port = 9099;
 const makeColorCode = '0123456789ABCDEF';
-const lastColorKey = 'lastcolor22';
 const defaultColor = randomColorHex();
 const conVars = {
     url: process.env.REDIS_URL || '127.0.0.1:6379'
@@ -64,7 +63,8 @@ app.get('/api/color', async (req, res) => {
         color: lastColor ?? defaultColor,
         id: req.query.id
     };
-    //console.log(dataModel);//Store
+
+    console.log(dataModel);//Store
 
     const respObj = {
         color: dataModel.color
@@ -80,9 +80,6 @@ app.ws('/ws/color', async function (ws, req) {
     connections.push(ws);
 
     ws.on('message', async function (msg) {
-        const tsInfo = await rClient.ts.info(rtsKey);//Temp
-        console.log(tsInfo);//Temp
-        
         model = JSON.parse(msg);
         let err = validate(model);
         if (0 === err.length) {
@@ -152,13 +149,12 @@ async function set(model) {
         long: model.long,
         color: model.color
     };
-    //console.log(dataModel);//Store
+    console.log(dataModel);//Store
 
     //determine outgoing
     //generate response from data-store (Redis)
     //-Time Delayed Average, weighted by proximity
     const color = await getAverageColor();
-    console.log("avg color: " + color);
     return {
         color: color
     };
@@ -166,16 +162,12 @@ async function set(model) {
 
 async function getColor() {
     let lastColor = await rClient.ts.get(rtsKey);
-    console.log("get: "+lastColor.value);//TEMP
     let colorHex = parseInt(lastColor.value).toString(16);
-    console.log("get hex: "+colorHex);//TEMP
     return colorHex;
 }
 async function getAverageColor() {
     let fromTimestamp = new Date().setDate(-1).valueOf();
     let toTimestamp = new Date().valueOf();
-    // console.log("fr" + fromTimestamp);//Temp
-    // console.log("to" + toTimestamp);//Temp
 
     let colorsResponse = await rClient.ts.range(rtsKey, fromTimestamp, toTimestamp, {
         // Group into 60 minutes averages.
@@ -184,31 +176,24 @@ async function getAverageColor() {
             timeBucket: 360000
         }
     });
-    //console.log("avg: " + JSON.stringify(colorsResponse));//Temp
+
     if (colorsResponse.length > 0) {
-        //console.log(JSON.stringify(colorAvg));//Temp
         let color = 0;
         colorsResponse.forEach((item, index, arr) =>{
-            color += item.value;
+            color += Math.round(parseInt(item.value));
         });
         color = color / colorsResponse.length;
-        console.log("color:" + color);//Temp
         return Math.round(color).toString(16);
     }
     else{
-        let c =randomColorHex(); 
-        console.log("!random!: " + c);
-        return c;
+        return randomColorHex();
     }
 }
 
 async function setColor(color) {
-    //console.log("set color: " + color);
     let colorInt = parseInt(color.replace("#", ''), 16);
     let at = new Date().setHours(0);
-    //console.log("set color int: " + colorInt);
     await rClient.ts.add(rtsKey, at, colorInt);//Time Series
-    //await rClient.set(lastColorKey, colorInt); //Last Color
 }
 
 function randomColorHex() {
