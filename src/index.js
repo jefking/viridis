@@ -174,14 +174,14 @@ async function getColor() {
 async function getAverageColor() {
     let fromTimestamp = new Date().setDate(-1).valueOf();
     let toTimestamp = new Date().valueOf();
-    console.log("fr" + fromTimestamp);//Temp
-    console.log("to" + toTimestamp);//Temp
+    // console.log("fr" + fromTimestamp);//Temp
+    // console.log("to" + toTimestamp);//Temp
 
     let colorsResponse = await rClient.ts.range(rtsKey, fromTimestamp, toTimestamp, {
-        // Group into 60 second averages.
+        // Group into 60 minutes averages.
         AGGREGATION: {
             type: TimeSeriesAggregationType.AVERAGE,
-            timeBucket: 60000
+            timeBucket: 360000
         }
     });
     console.log("avg: " + JSON.stringify(colorsResponse));//Temp
