@@ -1,0 +1,13 @@
+{
+    "name": "viridis-math",
+    "version": "alpha-0.0.1",
+    "description": "viridis, maths color",
+    "main": "index.js",
+    "scripts": {
+      "start": "node index.js"
+    },
+    "author": "Jef King",
+    "dependencies": {
+    }
+  }
+  
