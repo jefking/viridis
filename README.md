@@ -16,3 +16,11 @@ docker-compose up --build
 
 ## Run
 [viridis](http://localhost:9099/)
+
+
+Algorythms:
+-incentivise based on transistions
+
+Proximity -> the wave
+Breath
+Rip/Tear
