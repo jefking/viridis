@@ -24,7 +24,7 @@ const startRedisTimeSeries = async (client) => {
         await client.ts.create(rtsKey, {
             RETENTION: 86400000, // 1 day in milliseconds
             ENCODING: TimeSeriesEncoding.UNCOMPRESSED, // No compression
-            DUPLICATE_POLICY: TimeSeriesDuplicatePolicies.BLOCK // No duplicates
+            DUPLICATE_POLICY: TimeSeriesDuplicatePolicies.LAST
         });
     } catch (err) {
         console.error(err);
