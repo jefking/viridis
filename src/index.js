@@ -165,6 +165,7 @@ async function getColor() {
     let colorHex = parseInt(lastColor.value).toString(16);
     return colorHex;
 }
+
 async function getAverageColor() {
     let fromTimestamp = new Date().setDate(-1).valueOf();
     let toTimestamp = new Date().valueOf();
@@ -179,13 +180,13 @@ async function getAverageColor() {
 
     if (colorsResponse.length > 0) {
         let color = 0;
-        colorsResponse.forEach((item, index, arr) =>{
+        colorsResponse.forEach((item, index, arr) => {
             color += Math.round(parseInt(item.value));
         });
         color = color / colorsResponse.length;
         return Math.round(color).toString(16);
     }
-    else{
+    else {
         return randomColorHex();
     }
 }

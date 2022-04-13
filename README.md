@@ -17,6 +17,7 @@ docker-compose up --build
 ## Run
 [viridis](http://localhost:9099/)
 
+Haptics
 
 Algorythms:
 -incentivise based on transistions
