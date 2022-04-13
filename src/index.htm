@@ -63,10 +63,7 @@
         <p>Latitude: {{ lat }}</p>
         <p>Longitude: {{ long }}</p>
         <div class="color">
-            <input type="color" v-model="color" />
-        </div>
-        <div class="send">
-            <button v-on:click="send">send</button>
+            <input type="color" v-model="color" @input="updateColor" />
         </div>
     </div>
 </body>
@@ -102,6 +99,15 @@
             navigator.geolocation.getCurrentPosition(posSuccess, posError);
         },
         methods: {
+            async updateColor(event){
+                let model = {
+                    id: this.id,
+                    lat: this.lat,
+                    long: this.long,
+                    color: this.color.replace("#", '')
+                };
+                await this.sendMessage(JSON.stringify(model));
+            },
             uuidv4() {
                 return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
                     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
@@ -110,15 +116,6 @@
             async getColor(id) {
                 const response = await axios.get('/api/color?id=' + id);
                 return response.data.color;
-            },
-            async send() {
-                const model = {
-                    id: this.id,
-                    lat: this.lat,
-                    long: this.long,
-                    color: this.color.replace("#", '')
-                };
-                await this.sendMessage(JSON.stringify(model));
             },
             waitForOpenConnection: function () {
                 // We use this to measure how many times we have tried to connect to the websocket server
