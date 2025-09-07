@@ -7,194 +7,191 @@ const fs = require('fs');
 const { env } = require('process');
 const { response } = require('express');
 
-/**
- * Variables
- */
+const conVars = {
+    url: env.REDIS_URL || '127.0.0.1:6379'
+};
 const port = 9099;
 const makeColorCode = '0123456789ABCDEF';
-const defaultColor = randomColorHex();
-const conVars = {
-    url: process.env.REDIS_URL || '127.0.0.1:6379'
-};
-let connections = [];
 
-const rtsKey = 'color11';
+const rtsKey = 'viridis:color';
+
 const startRedisTimeSeries = async (client) => {
     try {
         await client.ts.create(rtsKey, {
-            RETENTION: 86400000, // 1 day in milliseconds
-            ENCODING: TimeSeriesEncoding.UNCOMPRESSED, // No compression
+            RETENTION: 86400000, // 24 hours in milliseconds
+            ENCODING: TimeSeriesEncoding.COMPRESSED,
             DUPLICATE_POLICY: TimeSeriesDuplicatePolicies.LAST
         });
-    } catch (err) {
-        console.error(err);
+        console.log('Time series created successfully');
+    } catch (error) {
+        if (error.message.includes('TSDB: key already exists')) {
+            console.log('Time series already exists');
+        } else {
+            console.error('Error creating time series:', error);
+        }
     }
 };
 
-//Log Variables
-console.log(`Configuration: Express:${port}, Redis:${JSON.stringify(conVars)}`);
-
-/**
- * Init Application
- */
 const html = fs.readFileSync('./index.htm', 'utf-8');
 const rClient = redis.createClient(conVars);
 rClient.connect();
 startRedisTimeSeries(rClient);
 
 const app = express();
-app.use(express.json());
-const server = http.createServer(app).listen(port);
-expressWs(app, server);
+expressWs(app);
+const server = http.createServer(app);
 
-/**
- * Express
- */
+app.use(express.json());
+
+// Middleware to handle JSON parsing errors
+app.use((error, req, res, next) => {
+    if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+        return res.status(400).json({ success: false, message: 'Invalid JSON' });
+    }
+    next();
+});
+
 app.get('/', (req, res) => {
-    res
-        .status(200)
-        .send(html)
-        .end();
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
 });
 
 app.get('/api/color', async (req, res) => {
-    let lastColor = await getColor();
-    dataModel = {
-        color: lastColor ?? defaultColor,
-        id: req.query.id
-    };
-
-    console.log(dataModel);//Store
-
-    const respObj = {
-        color: dataModel.color
-    };
-    res
-        .status(200)
-        .send(respObj)
-        .end();
+    try {
+        const color = await getColor();
+        const average = await getAverageColor();
+        res.json({
+            color: '#' + color,
+            average: '#' + average
+        });
+    } catch (error) {
+        console.error('Error getting color:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
 });
 
-// Get the /ws websocket route
 app.ws('/ws/color', async function (ws, req) {
-    connections.push(ws);
-
+    console.log('WebSocket connection established');
+    
     ws.on('message', async function (msg) {
-        model = JSON.parse(msg);
-        let err = validate(model);
-        if (0 === err.length) {
-            const respObj = await set(model);
-
-            const message = JSON.stringify(respObj);
-
-            connections.forEach((ws) => {
-                ws.send(message)
-            });
+        try {
+            console.log('WebSocket message received:', msg);
+            const color = await getColor();
+            const average = await getAverageColor();
+            ws.send(JSON.stringify({
+                color: '#' + color,
+                average: '#' + average
+            }));
+        } catch (error) {
+            console.error('WebSocket error:', error);
+            ws.send(JSON.stringify({ error: 'Internal server error' }));
         }
-        else {
-            console.error(err); //Log
-        }
+    });
+    
+    ws.on('close', function() {
+        console.log('WebSocket connection closed');
     });
 });
 
 app.put('/api/color', async (req, res) => {
-    const model = (typeof req.body != 'undefined' && typeof req.body == 'object') ? req.body : null;
-    let err = validate(model);
-
-    if (0 === err.length) {
-        respObj = set(model);
-
-        res
-            .status(200)
-            .send(respObj)
-            .end();
-    }
-    else {
-        console.error(err); //Log
-
-        res
-            .status(500)
-            .end();
+    try {
+        const model = req.body;
+        
+        if (!validate(model)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Invalid color format. Expected #RRGGBB format.' 
+            });
+        }
+        
+        await set(model);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error setting color:', error);
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 });
 
-/**
- * Functions
- */
 function validate(model) {
-    let err = []
-    if (!model) {
-        err.push("no data; or invalid payload in body.");
+    if (!model || !model.color) {
+        return false;
     }
-    if (!model.id) {
-        err.push("no id");
+    
+    const color = model.color;
+    
+    // Check if it starts with #
+    if (!color.startsWith('#')) {
+        return false;
     }
-    if (!model.lat) {
-        err.push("no latitude");
+    
+    // Check if it's exactly 7 characters (#RRGGBB)
+    if (color.length !== 7) {
+        return false;
     }
-    if (!model.long) {
-        err.push("no longitude");
-    }
-    return err;
+    
+    // Check if the remaining 6 characters are valid hex
+    const hexPart = color.slice(1);
+    const hexPattern = /^[0-9A-Fa-f]{6}$/;
+    
+    return hexPattern.test(hexPart);
 }
 
 async function set(model) {
-    //Comment out Redis to get websockets working
-    await setColor(model.color ?? defaultColor);
-
-    //store incoming
-    dataModel = {
-        id: model.id,
-        lat: model.lat,
-        long: model.long,
-        color: model.color
-    };
-    console.log(dataModel);//Store
-
-    //determine outgoing
-    //generate response from data-store (Redis)
-    //-Time Delayed Average, weighted by proximity
-    const color = await getAverageColor();
-    return {
-        color: color
-    };
+    try {
+        await setColor(model.color);
+    } catch (error) {
+        console.error('Error in set function:', error);
+        throw error;
+    }
 }
 
 async function getColor() {
-    let lastColor = await rClient.ts.get(rtsKey);
-    let colorHex = parseInt(lastColor.value).toString(16);
-    return colorHex;
+    try {
+        let lastColor = await rClient.ts.get(rtsKey);
+        if (lastColor && lastColor.value) {
+            return lastColor.value.toString(16).toUpperCase().padStart(6, '0');
+        } else {
+            return randomColorHex();
+        }
+    } catch (error) {
+        console.error('Error getting color:', error);
+        return randomColorHex();
+    }
 }
 
 async function getAverageColor() {
-    let fromTimestamp = new Date().setDate(-1).valueOf();
-    let toTimestamp = new Date().valueOf();
-
-    let colorsResponse = await rClient.ts.range(rtsKey, fromTimestamp, toTimestamp, {
-        // Group into 60 minutes averages.
-        AGGREGATION: {
-            type: TimeSeriesAggregationType.AVERAGE,
-            timeBucket: 360000
-        }
-    });
-
-    if (colorsResponse.length > 0) {
-        let color = 0;
-        colorsResponse.forEach((item, index, arr) => {
-            color += Math.round(parseInt(item.value));
+    try {
+        let fromTimestamp = new Date().setHours(0) - 86400000; // 24 hours ago
+        let toTimestamp = new Date().setHours(0);
+        
+        let colorsResponse = await rClient.ts.range(rtsKey, fromTimestamp, toTimestamp, {
+            AGGREGATION: {
+                type: TimeSeriesAggregationType.AVERAGE,
+                timeBucket: 86400000
+            }
         });
-        color = color / colorsResponse.length;
-        return Math.round(color).toString(16);
-    }
-    else {
+        
+        if (colorsResponse && colorsResponse.length > 0) {
+            let averageColor = colorsResponse[0].value;
+            return Math.round(averageColor).toString(16).toUpperCase().padStart(6, '0');
+        } else {
+            return randomColorHex();
+        }
+    } catch (error) {
+        console.error('Error getting average color:', error);
         return randomColorHex();
     }
 }
 
 async function setColor(color) {
-    let colorInt = parseInt(color.replace("#", ''), 16);
-    let at = new Date().setHours(0);
-    await rClient.ts.add(rtsKey, at, colorInt);//Time Series
+    try {
+        let colorInt = parseInt(color.replace('#', ''), 16);
+        let at = new Date().setHours(0);
+        await rClient.ts.add(rtsKey, at, colorInt);
+    } catch (error) {
+        console.error('Error setting color:', error);
+        throw error;
+    }
 }
 
 function randomColorHex() {
@@ -203,4 +200,14 @@ function randomColorHex() {
         code += makeColorCode[Math.floor(Math.random() * 16)];
     }
     return code;
+}
+
+// Export the app for testing
+module.exports = app;
+
+// Only start the server if this file is run directly (not required for testing)
+if (require.main === module) {
+    server.listen(port, () => {
+        console.log('Viridis server listening on port', port);
+    });
 }
