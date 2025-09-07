@@ -4,7 +4,10 @@
   "description": "viridis, colors",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch"
   },
   "author": "Jef King",
   "dependencies": {
@@ -14,5 +17,12 @@
     "fs": "^0.0.1-security",
     "http": "^0.0.1-security",
     "redis": "^4.0.6"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "supertest": "^6.0.0",
+    "ws": "^8.0.0",
+    "redis-mock": "^0.56.3",
+    "@types/jest": "^29.0.0"
   }
 }
