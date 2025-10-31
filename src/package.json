@@ -12,7 +12,7 @@
   "author": "Jef King",
   "dependencies": {
     "@node-redis/time-series": "^1.0.2",
-    "express": "^4.17.3",
+    "express": "^4.21.2",
     "express-ws": "^5.0.2",
     "fs": "^0.0.1-security",
     "http": "^0.0.1-security",
