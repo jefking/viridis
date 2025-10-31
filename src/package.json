@@ -12,17 +12,17 @@
   "author": "Jef King",
   "dependencies": {
     "@node-redis/time-series": "^1.0.2",
-    "express": "^4.21.2",
+    "express": "^5.1.0",
     "express-ws": "^5.0.2",
     "fs": "^0.0.1-security",
     "http": "^0.0.1-security",
-    "redis": "^4.0.6"
+    "redis": "^5.9.0"
   },
   "devDependencies": {
-    "jest": "^29.0.0",
-    "supertest": "^6.0.0",
-    "ws": "^8.0.0",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
     "redis-mock": "^0.56.3",
-    "@types/jest": "^29.0.0"
+    "supertest": "^7.1.4",
+    "ws": "^8.18.3"
   }
 }
