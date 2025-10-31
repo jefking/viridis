@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../:/workspace:cached
+      # Persist node_modules in a named volume for better performance
+      - node_modules:/workspace/src/node_modules
+    command: sleep infinity
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=development
+    ports:
+      - "9099:9099"
+    depends_on:
+      - redis
+    networks:
+      - viridis-dev
+
+  redis:
+    image: redis/redis-stack-server:latest
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - viridis-dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  node_modules:
+  redis-data:
+
+networks:
+  viridis-dev:
+    driver: bridge
+

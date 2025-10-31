@@ -1,0 +1,65 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Viridis",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/src/index.js",
+      "cwd": "${workspaceFolder}/src",
+      "env": {
+        "REDIS_URL": "redis://redis:6379",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "restart": true,
+      "runtimeArgs": ["--inspect"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Viridis with Nodemon",
+      "runtimeExecutable": "nodemon",
+      "program": "${workspaceFolder}/src/index.js",
+      "cwd": "${workspaceFolder}/src",
+      "restart": true,
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": ["<node_internals>/**"],
+      "env": {
+        "REDIS_URL": "redis://redis:6379",
+        "NODE_ENV": "development"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Jest Current File",
+      "program": "${workspaceFolder}/src/node_modules/.bin/jest",
+      "args": ["${fileBasename}", "--runInBand", "--detectOpenHandles"],
+      "cwd": "${workspaceFolder}/src",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "disableOptimisticBPs": true,
+      "windows": {
+        "program": "${workspaceFolder}/src/node_modules/jest/bin/jest"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Jest All Tests",
+      "program": "${workspaceFolder}/src/node_modules/.bin/jest",
+      "args": ["--runInBand", "--detectOpenHandles"],
+      "cwd": "${workspaceFolder}/src",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "disableOptimisticBPs": true,
+      "windows": {
+        "program": "${workspaceFolder}/src/node_modules/jest/bin/jest"
+      }
+    }
+  ]
+}
+
