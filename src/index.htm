@@ -73,7 +73,16 @@
 <script lang="javascript">
     new Vue({
         el: '#app',
-        props: ['lat', 'long', 'color', 'wsColor', 'socket'],
+        data() {
+            return {
+                id: null,
+                lat: 'Requesting...',
+                long: 'Requesting...',
+                color: '#000000',
+                wsColor: null,
+                socket: null
+            };
+        },
         created() {
             this.id = this.uuidv4();
             const gColor = this.getColor(this.id);
@@ -87,12 +96,15 @@
             };
 
             const posSuccess = (position) => {
-                this.lat = position.coords.latitude;
-                this.long = position.coords.longitude;
+                this.lat = position.coords.latitude.toFixed(6);
+                this.long = position.coords.longitude.toFixed(6);
+                console.log('Geolocation success:', this.lat, this.long);
             };
 
             const posError = (err) => {
-                console.log(error)
+                console.error('Geolocation error:', err);
+                this.lat = 'Permission denied or unavailable';
+                this.long = 'Permission denied or unavailable';
             };
 
             // This will open permission popup
