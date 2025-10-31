@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Viridis WebSocket Debug</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #fff;
+        }
+        #status {
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #333;
+        }
+        .connected {
+            border-color: #0f0;
+        }
+        .disconnected {
+            border-color: #f00;
+        }
+        .button-row {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #2a2a2a;
+            border-radius: 5px;
+        }
+        .button-row h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #888;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 3px;
+            background: #444;
+            color: #fff;
+        }
+        button:hover {
+            background: #555;
+        }
+        button:active {
+            background: #333;
+        }
+        .color-displays {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .color-box {
+            flex: 1;
+            text-align: center;
+        }
+        .color-square {
+            width: 200px;
+            height: 200px;
+            border: 3px solid #fff;
+            border-radius: 10px;
+            margin: 0 auto 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 3px #000, 0 0 5px #000;
+        }
+        .color-label {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .color-value {
+            font-size: 14px;
+            color: #888;
+        }
+        #log {
+            background: #000;
+            padding: 10px;
+            border: 1px solid #333;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #0f0;
+        }
+        .error {
+            border-left-color: #f00;
+        }
+        .info {
+            border-left-color: #00f;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 Viridis WebSocket Debug</h1>
+
+    <div id="status" class="disconnected">
+        Status: <span id="statusText">Disconnected</span>
+    </div>
+
+    <div class="button-row">
+        <h3>CONNECTION</h3>
+        <button id="connectBtn" onclick="connect()" style="display: none;">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" style="display: none;">Disconnect</button>
+        <button id="clearBtn" onclick="clearLog()" style="display: none;">Clear</button>
+    </div>
+
+    <div class="button-row">
+        <h3>SEND COLOR</h3>
+        <button onclick="sendTestColor('#FF0000')" style="background: #FF0000;">Red</button>
+        <button onclick="sendTestColor('#00FF00')" style="background: #00FF00; color: #000;">Green</button>
+        <button onclick="sendTestColor('#0000FF')" style="background: #0000FF;">Blue</button>
+        <button onclick="sendTestColor('#000000')" style="background: #000000;">Black</button>
+        <button onclick="sendTestColor('#FFFFFF')" style="background: #FFFFFF; color: #000;">White</button>
+    </div>
+
+    <h2>Color Display:</h2>
+    <div class="color-displays">
+        <div class="color-box">
+            <div class="color-label">Last Sent Color</div>
+            <div id="sentColorSquare" class="color-square" style="background: #888;">
+                <span id="sentColorText">None</span>
+            </div>
+            <div class="color-value" id="sentColorValue">-</div>
+        </div>
+        <div class="color-box">
+            <div class="color-label">Global Average</div>
+            <div id="globalColorSquare" class="color-square" style="background: #888;">
+                <span id="globalColorText">Waiting...</span>
+            </div>
+            <div class="color-value" id="globalColorValue">-</div>
+        </div>
+    </div>
+
+    <h2>Message Log:</h2>
+    <div id="log"></div>
+    
+    <script>
+        let ws = null;
+        let messageCount = 0;
+
+        function log(message, type = 'message') {
+            const logDiv = document.getElementById('log');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${type}`;
+            msgDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(msgDiv);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            if (connected) {
+                statusDiv.className = 'connected';
+                statusText.textContent = 'Connected';
+            } else {
+                statusDiv.className = 'disconnected';
+                statusText.textContent = 'Disconnected';
+            }
+        }
+
+        function updateSentColor(color) {
+            const square = document.getElementById('sentColorSquare');
+            const text = document.getElementById('sentColorText');
+            const value = document.getElementById('sentColorValue');
+
+            square.style.background = color;
+            text.textContent = color;
+            value.textContent = color;
+
+            // Adjust text color for readability
+            const hex = color.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            text.style.color = luminance > 0.5 ? '#000' : '#fff';
+        }
+
+        function updateGlobalColor(color) {
+            const square = document.getElementById('globalColorSquare');
+            const text = document.getElementById('globalColorText');
+            const value = document.getElementById('globalColorValue');
+
+            // Add # if not present
+            if (!color.startsWith('#')) {
+                color = '#' + color;
+            }
+
+            square.style.background = color;
+            text.textContent = color;
+            value.textContent = color;
+
+            // Adjust text color for readability
+            const hex = color.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            text.style.color = luminance > 0.5 ? '#000' : '#fff';
+        }
+        
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('Already connected', 'info');
+                return;
+            }
+            
+            log('Connecting to ws://localhost:9099/ws/color...', 'info');
+            ws = new WebSocket('ws://localhost:9099/ws/color');
+            
+            ws.onopen = () => {
+                log('✅ WebSocket connected!', 'info');
+                updateStatus(true);
+            };
+            
+            ws.onmessage = (event) => {
+                messageCount++;
+                log(`📨 Message #${messageCount}: ${event.data}`, 'message');
+
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`   Parsed: color=${data.color}, average=${data.average}`, 'info');
+
+                    // Update global color display
+                    if (data.average) {
+                        updateGlobalColor(data.average);
+                        log(`   ✅ Updated global color display`, 'info');
+                    }
+                } catch (e) {
+                    log(`   Failed to parse JSON: ${e.message}`, 'error');
+                }
+            };
+            
+            ws.onerror = (error) => {
+                log(`❌ WebSocket error: ${error}`, 'error');
+            };
+            
+            ws.onclose = () => {
+                log('WebSocket closed', 'info');
+                updateStatus(false);
+            };
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        async function sendTestColor(color) {
+            log(`📤 Sending PUT request with color ${color}...`, 'info');
+
+            // Update sent color display immediately
+            updateSentColor(color);
+
+            try {
+                const response = await fetch('/api/color', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id: 'debug-user-' + Date.now(),
+                        color: color,
+                        lat: 37.7749,
+                        long: -122.4194
+                    })
+                });
+
+                const data = await response.json();
+                log(`✅ API response: ${JSON.stringify(data)}`, 'info');
+
+                if (data.success) {
+                    log('   ⏳ Waiting for WebSocket broadcast...', 'info');
+                }
+            } catch (error) {
+                log(`❌ API error: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            messageCount = 0;
+        }
+        
+        // Auto-connect on load
+        window.onload = () => {
+            log('Page loaded. Click "Connect WebSocket" to start.', 'info');
+        };
+    </script>
+</body>
+</html>
+
