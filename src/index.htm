@@ -119,9 +119,11 @@
                     const newAverage = msg.average.startsWith('#') ? msg.average : '#' + msg.average;
                     this.globalAverage = newAverage;
 
-                    // Transition to the new global average (smooth transition for other users' changes)
+                    // Transition to the new global average over 10 seconds
+                    // This will restart any existing transition from the current display color
                     if (newAverage !== this.color) {
-                        this.transitionToColor(newAverage);
+                        console.log('Server color changed, restarting transition to:', newAverage);
+                        this.transitionToColor(newAverage, 10000);
                     }
                 }
             };
@@ -172,14 +174,14 @@
         },
         methods: {
             async updateColor(event){
-                // Immediately update display color for instant feedback
-                this.displayColor = this.color;
-
                 // Clear any ongoing transition
                 if (this.transitionInterval) {
                     clearInterval(this.transitionInterval);
                     this.transitionInterval = null;
                 }
+
+                // Transition to the new color over 3 seconds
+                this.transitionToColor(this.color, 3000);
 
                 // Only send if we have valid lat/long
                 if (typeof this.lat === 'number' && typeof this.long === 'number') {
