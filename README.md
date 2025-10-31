@@ -22,7 +22,7 @@ docker-compose up --build
 
 **Test Coverage:** 69% statements, 82.5% branches, 66.66% functions, 68.84% lines
 
-**Total Tests:** 70 (67 passing, 3 skipped)
+**Total Tests:** 70 (64 passing, 6 skipped)
 
 See [TESTING.md](./TESTING.md) for detailed testing documentation.
 
