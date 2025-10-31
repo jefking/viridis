@@ -154,6 +154,7 @@
             msgDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
             logDiv.appendChild(msgDiv);
             logDiv.scrollTop = logDiv.scrollHeight;
+            updateButtonVisibility();
         }
 
         function updateStatus(connected) {
@@ -166,6 +167,23 @@
                 statusDiv.className = 'disconnected';
                 statusText.textContent = 'Disconnected';
             }
+            updateButtonVisibility();
+        }
+
+        function updateButtonVisibility() {
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const logDiv = document.getElementById('log');
+
+            // Show Connect only when disconnected
+            connectBtn.style.display = (!ws || ws.readyState !== WebSocket.OPEN) ? 'inline-block' : 'none';
+
+            // Show Disconnect only when connected
+            disconnectBtn.style.display = (ws && ws.readyState === WebSocket.OPEN) ? 'inline-block' : 'none';
+
+            // Show Clear only when there are messages
+            clearBtn.style.display = (logDiv.children.length > 0) ? 'inline-block' : 'none';
         }
 
         function updateSentColor(color) {
@@ -292,11 +310,14 @@
         function clearLog() {
             document.getElementById('log').innerHTML = '';
             messageCount = 0;
+            updateButtonVisibility();
         }
-        
+
         // Auto-connect on load
         window.onload = () => {
-            log('Page loaded. Click "Connect WebSocket" to start.', 'info');
+            updateButtonVisibility();
+            log('Auto-connecting to WebSocket...', 'info');
+            connect();
         };
     </script>
 </body>

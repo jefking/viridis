@@ -133,14 +133,18 @@
 
                 // Now that we have location, get the color with proximity data
                 this.getColor(this.id).then((data) => {
+                    // Default to global average for initial display
+                    if (data.average) {
+                        this.globalAverage = data.average;
+                        this.displayColor = data.average;
+                    } else {
+                        this.displayColor = data.color;
+                    }
                     this.color = data.color;
-                    this.displayColor = data.color; // Set initial display color
+
                     if (data.proximityAverage) {
                         this.proximityAverage = data.proximityAverage;
                         this.nearbyCount = data.nearbyCount;
-                    }
-                    if (data.average) {
-                        this.globalAverage = data.average;
                     }
                 });
             };
@@ -152,11 +156,14 @@
 
                 // Still get color, just without proximity data
                 this.getColor(this.id).then((data) => {
-                    this.color = data.color;
-                    this.displayColor = data.color; // Set initial display color
+                    // Default to global average for initial display
                     if (data.average) {
                         this.globalAverage = data.average;
+                        this.displayColor = data.average;
+                    } else {
+                        this.displayColor = data.color;
                     }
+                    this.color = data.color;
                 });
             };
 
@@ -200,7 +207,7 @@
                     console.warn('Cannot update color without valid geolocation');
                 }
             },
-            transitionToColor(targetColor) {
+            transitionToColor(targetColor, duration = 10000) {
                 // Clear any existing transition
                 if (this.transitionInterval) {
                     clearInterval(this.transitionInterval);
@@ -208,13 +215,14 @@
 
                 const startColor = this.displayColor;
                 const steps = 60; // Number of steps for smooth transition
-                const duration = 2000; // 2 seconds for smooth transition
                 const stepDuration = duration / steps;
                 let currentStep = 0;
 
                 // Parse start and target colors
                 const startRGB = this.hexToRgb(startColor);
                 const targetRGB = this.hexToRgb(targetColor);
+
+                console.log(`Starting transition from ${startColor} to ${targetColor} over ${duration}ms`);
 
                 this.transitionInterval = setInterval(() => {
                     currentStep++;
@@ -235,6 +243,7 @@
                     if (currentStep >= steps) {
                         clearInterval(this.transitionInterval);
                         this.transitionInterval = null;
+                        console.log('Transition complete');
                     }
                 }, stepDuration);
             },
