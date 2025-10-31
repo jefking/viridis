@@ -59,9 +59,11 @@
     <div id="app" v-bind:style="{backgroundColor: color}">
         <h1>Viridis</h1>
         <p>Id: {{ id }}</p>
-        <p>Color: {{ color }}</p>
+        <p>Your Color: {{ color }}</p>
         <p>Latitude: {{ lat }}</p>
         <p>Longitude: {{ long }}</p>
+        <p v-if="proximityAverage">Nearby Average: {{ proximityAverage }} ({{ nearbyCount }} nearby)</p>
+        <p v-if="globalAverage">Global Average: {{ globalAverage }}</p>
         <div class="color">
             <input type="color" v-model="color" @input="updateColor" />
         </div>
@@ -80,13 +82,14 @@
                 long: 'Requesting...',
                 color: '#000000',
                 wsColor: null,
-                socket: null
+                socket: null,
+                proximityAverage: null,
+                globalAverage: null,
+                nearbyCount: 0
             };
         },
         created() {
             this.id = this.uuidv4();
-            const gColor = this.getColor(this.id);
-            gColor.then((c) => { this.color = '#' + c });
 
             this.socket = new WebSocket('ws://127.0.0.1:9099/ws/color');
 
@@ -96,15 +99,35 @@
             };
 
             const posSuccess = (position) => {
-                this.lat = position.coords.latitude.toFixed(6);
-                this.long = position.coords.longitude.toFixed(6);
+                this.lat = parseFloat(position.coords.latitude.toFixed(6));
+                this.long = parseFloat(position.coords.longitude.toFixed(6));
                 console.log('Geolocation success:', this.lat, this.long);
+
+                // Now that we have location, get the color with proximity data
+                this.getColor(this.id).then((data) => {
+                    this.color = data.color;
+                    if (data.proximityAverage) {
+                        this.proximityAverage = data.proximityAverage;
+                        this.nearbyCount = data.nearbyCount;
+                    }
+                    if (data.average) {
+                        this.globalAverage = data.average;
+                    }
+                });
             };
 
             const posError = (err) => {
                 console.error('Geolocation error:', err);
                 this.lat = 'Permission denied or unavailable';
                 this.long = 'Permission denied or unavailable';
+
+                // Still get color, just without proximity data
+                this.getColor(this.id).then((data) => {
+                    this.color = data.color;
+                    if (data.average) {
+                        this.globalAverage = data.average;
+                    }
+                });
             };
 
             // This will open permission popup
@@ -112,13 +135,31 @@
         },
         methods: {
             async updateColor(event){
-                let model = {
-                    id: this.id,
-                    lat: this.lat,
-                    long: this.long,
-                    color: this.color.replace("#", '')
-                };
-                await this.sendMessage(JSON.stringify(model));
+                // Only send if we have valid lat/long
+                if (typeof this.lat === 'number' && typeof this.long === 'number') {
+                    let model = {
+                        id: this.id,
+                        lat: this.lat,
+                        long: this.long,
+                        color: this.color
+                    };
+
+                    try {
+                        const response = await axios.put('/api/color', model);
+                        console.log('Color updated:', response.data);
+
+                        // Refresh proximity data
+                        const colorData = await this.getColor(this.id);
+                        if (colorData.proximityAverage) {
+                            this.proximityAverage = colorData.proximityAverage;
+                            this.nearbyCount = colorData.nearbyCount;
+                        }
+                    } catch (error) {
+                        console.error('Error updating color:', error);
+                    }
+                } else {
+                    console.warn('Cannot update color without valid geolocation');
+                }
             },
             uuidv4() {
                 return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
@@ -126,8 +167,15 @@
                 );
             },
             async getColor(id) {
-                const response = await axios.get('/api/color?id=' + id);
-                return response.data.color;
+                let url = '/api/color?id=' + id;
+
+                // Add lat/long if available
+                if (typeof this.lat === 'number' && typeof this.long === 'number') {
+                    url += '&lat=' + this.lat + '&long=' + this.long;
+                }
+
+                const response = await axios.get(url);
+                return response.data;
             },
             waitForOpenConnection: function () {
                 // We use this to measure how many times we have tried to connect to the websocket server
