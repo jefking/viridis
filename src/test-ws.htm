@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #fff;
+        }
+        #log {
+            background: #000;
+            padding: 10px;
+            border: 1px solid #333;
+            height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #0f0;
+        }
+        .error {
+            border-left-color: #f00;
+        }
+        .info {
+            border-left-color: #00f;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+        }
+        #status {
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 2px solid #333;
+        }
+        .connected {
+            border-color: #0f0;
+        }
+        .disconnected {
+            border-color: #f00;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Broadcast Test</h1>
+    
+    <div id="status" class="disconnected">
+        Status: <span id="statusText">Disconnected</span>
+    </div>
+    
+    <div>
+        <button onclick="connect()">Connect WebSocket</button>
+        <button onclick="disconnect()">Disconnect</button>
+        <button onclick="sendTestColor('#FF0000')">Send Red</button>
+        <button onclick="sendTestColor('#00FF00')">Send Green</button>
+        <button onclick="sendTestColor('#0000FF')">Send Blue</button>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <h2>Message Log:</h2>
+    <div id="log"></div>
+    
+    <script>
+        let ws = null;
+        let messageCount = 0;
+        
+        function log(message, type = 'message') {
+            const logDiv = document.getElementById('log');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${type}`;
+            msgDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(msgDiv);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function updateStatus(connected) {
+            const statusDiv = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            if (connected) {
+                statusDiv.className = 'connected';
+                statusText.textContent = 'Connected';
+            } else {
+                statusDiv.className = 'disconnected';
+                statusText.textContent = 'Disconnected';
+            }
+        }
+        
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                log('Already connected', 'info');
+                return;
+            }
+            
+            log('Connecting to ws://localhost:9099/ws/color...', 'info');
+            ws = new WebSocket('ws://localhost:9099/ws/color');
+            
+            ws.onopen = () => {
+                log('✅ WebSocket connected!', 'info');
+                updateStatus(true);
+            };
+            
+            ws.onmessage = (event) => {
+                messageCount++;
+                log(`📨 Message #${messageCount}: ${event.data}`, 'message');
+                
+                try {
+                    const data = JSON.parse(event.data);
+                    log(`   Parsed: color=${data.color}, average=${data.average}`, 'info');
+                } catch (e) {
+                    log(`   Failed to parse JSON: ${e.message}`, 'error');
+                }
+            };
+            
+            ws.onerror = (error) => {
+                log(`❌ WebSocket error: ${error}`, 'error');
+            };
+            
+            ws.onclose = () => {
+                log('WebSocket closed', 'info');
+                updateStatus(false);
+            };
+        }
+        
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        async function sendTestColor(color) {
+            log(`📤 Sending PUT request with color ${color}...`, 'info');
+            
+            try {
+                const response = await fetch('/api/color', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        id: 'test-user-' + Date.now(),
+                        color: color,
+                        lat: 37.7749,
+                        long: -122.4194
+                    })
+                });
+                
+                const data = await response.json();
+                log(`✅ API response: ${JSON.stringify(data)}`, 'info');
+                
+                if (data.success) {
+                    log('   Waiting for WebSocket broadcast...', 'info');
+                }
+            } catch (error) {
+                log(`❌ API error: ${error.message}`, 'error');
+            }
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            messageCount = 0;
+        }
+        
+        // Auto-connect on load
+        window.onload = () => {
+            log('Page loaded. Click "Connect WebSocket" to start.', 'info');
+        };
+    </script>
+</body>
+</html>
+
