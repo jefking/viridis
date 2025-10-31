@@ -3,11 +3,9 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/workspace",
-  
-  // Configure tool-specific properties
+
   "customizations": {
     "vscode": {
-      // Extensions to install in the container
       "extensions": [
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
@@ -15,19 +13,13 @@
         "orta.vscode-jest",
         "christian-kohler.npm-intellisense",
         "eg2.vscode-npm-script",
-        "ms-vscode.vscode-typescript-next",
-        "redhat.vscode-yaml",
-        "usernamehw.errorlens"
+        "redhat.vscode-yaml"
       ],
-      
-      // Settings for VS Code
+
       "settings": {
         "terminal.integrated.defaultProfile.linux": "bash",
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "editor.codeActionsOnSave": {
-          "source.fixAll.eslint": "explicit"
-        },
         "jest.autoRun": "off",
         "jest.showCoverageOnLoad": false,
         "files.watcherExclude": {
@@ -36,27 +28,9 @@
       }
     }
   },
-  
-  // Features to add to the dev container
-  "features": {
-    "ghcr.io/devcontainers/features/common-utils:2": {
-      "installZsh": true,
-      "installOhMyZsh": true,
-      "upgradePackages": true,
-      "username": "node",
-      "userUid": "1000",
-      "userGid": "1000"
-    },
-    "ghcr.io/devcontainers/features/git:1": {
-      "version": "latest",
-      "ppa": true
-    }
-  },
-  
-  // Use 'forwardPorts' to make a list of ports inside the container available locally
+
   "forwardPorts": [9099, 6379],
-  
-  // Port attributes
+
   "portsAttributes": {
     "9099": {
       "label": "Viridis App",
@@ -67,22 +41,9 @@
       "onAutoForward": "silent"
     }
   },
-  
-  // Use 'postCreateCommand' to run commands after the container is created
-  "postCreateCommand": "cd /workspace/src && npm install",
-  
-  // Comment out to connect as root instead
-  "remoteUser": "node",
-  
-  // Set environment variables
-  "remoteEnv": {
-    "REDIS_URL": "redis://redis:6379",
-    "NODE_ENV": "development"
-  },
-  
-  // Mounts
-  "mounts": [
-    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
-  ]
+
+  "postCreateCommand": "cd src && npm install",
+
+  "remoteUser": "node"
 }
 
