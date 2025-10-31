@@ -38,10 +38,16 @@ rClient.connect();
 startRedisTimeSeries(rClient);
 
 const app = express();
-expressWs(app);
 const server = http.createServer(app);
+const wsInstance = expressWs(app, server);
+
+console.log('Express-WS initialized:', wsInstance ? 'SUCCESS' : 'FAILED');
 
 app.use(express.json());
+app.use(express.static(__dirname));
+
+// Track all WebSocket connections for broadcasting
+const wsConnections = new Set();
 
 // Middleware to handle JSON parsing errors
 app.use((error, req, res, next) => {
@@ -103,41 +109,68 @@ app.get('/api/color', async (req, res) => {
     }
 });
 
-app.ws('/ws/color', async function (ws, req) {
-    console.log('WebSocket connection established');
-    
+app.ws('/ws/color', function (ws, req) {
+    console.log('WebSocket connection established from:', req.connection.remoteAddress);
+
+    // Add this connection to our set
+    wsConnections.add(ws);
+    console.log('Total WebSocket connections:', wsConnections.size);
+
     ws.on('message', async function (msg) {
         try {
             console.log('WebSocket message received:', msg);
             const color = await getColor();
             const average = await getAverageColor();
             ws.send(JSON.stringify({
-                color: '#' + color,
-                average: '#' + average
+                color: color,
+                average: average
             }));
         } catch (error) {
             console.error('WebSocket error:', error);
             ws.send(JSON.stringify({ error: 'Internal server error' }));
         }
     });
-    
+
     ws.on('close', function() {
         console.log('WebSocket connection closed');
+        wsConnections.delete(ws);
     });
 });
 
 app.put('/api/color', async (req, res) => {
     try {
         const model = req.body;
-        
+
         if (!validate(model)) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Invalid color format. Expected #RRGGBB format.' 
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid color format. Expected #RRGGBB format.'
             });
         }
-        
+
         await set(model);
+
+        // Broadcast the new global average to all connected clients
+        try {
+            const color = await getColor();
+            const average = await getAverageColor();
+            const message = JSON.stringify({
+                color: color,
+                average: average
+            });
+
+            console.log(`Broadcasting to ${wsConnections.size} clients:`, message);
+
+            wsConnections.forEach(client => {
+                if (client.readyState === 1) { // 1 = OPEN
+                    client.send(message);
+                }
+            });
+        } catch (broadcastError) {
+            console.error('Error broadcasting:', broadcastError);
+            // Don't fail the request if broadcast fails
+        }
+
         res.json({ success: true });
     } catch (error) {
         console.error('Error setting color:', error);
