@@ -3,6 +3,10 @@ const request = require('supertest');
 // Mock Redis before requiring the main module
 const mockRedisClient = {
   connect: jest.fn().mockResolvedValue(undefined),
+  hSet: jest.fn().mockResolvedValue(1),
+  zAdd: jest.fn().mockResolvedValue(1),
+  zRemRangeByScore: jest.fn().mockResolvedValue(0),
+  zRangeByScore: jest.fn().mockResolvedValue([]),
   ts: {
     create: jest.fn().mockResolvedValue('OK'),
     add: jest.fn().mockResolvedValue('OK'),
@@ -103,32 +107,47 @@ describe('Viridis Application - Complete Test Suite', () => {
       expect([200, 500]).toContain(response.status);
     });
 
-    test('PUT /api/color should accept valid color', async () => {
-      const validColor = { color: '#FF0000' };
+    test('PUT /api/color should accept valid color with geolocation', async () => {
+      const validColor = {
+        id: 'test-user-123',
+        color: '#FF0000',
+        lat: 37.7749,
+        long: -122.4194
+      };
       const response = await request(app)
         .put('/api/color')
         .send(validColor);
-      
+
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('success', true);
     });
 
     test('PUT /api/color should accept lowercase hex colors', async () => {
-      const validColor = { color: '#ff0000' };
+      const validColor = {
+        id: 'test-user-456',
+        color: '#ff0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
       const response = await request(app)
         .put('/api/color')
         .send(validColor);
-      
+
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('success', true);
     });
 
     test('PUT /api/color should reject invalid color format', async () => {
-      const invalidColor = { color: 'invalid-color' };
+      const invalidColor = {
+        id: 'test-user-789',
+        color: 'invalid-color',
+        lat: 37.7749,
+        long: -122.4194
+      };
       const response = await request(app)
         .put('/api/color')
         .send(invalidColor);
-      
+
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('success', false);
       expect(response.body).toHaveProperty('message');
@@ -137,8 +156,52 @@ describe('Viridis Application - Complete Test Suite', () => {
     test('PUT /api/color should reject missing color', async () => {
       const response = await request(app)
         .put('/api/color')
-        .send({});
-      
+        .send({
+          id: 'test-user-999',
+          lat: 37.7749,
+          long: -122.4194
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+    });
+
+    test('PUT /api/color should reject missing geolocation', async () => {
+      const response = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'test-user-888',
+          color: '#FF0000'
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+    });
+
+    test('PUT /api/color should reject invalid latitude', async () => {
+      const response = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'test-user-777',
+          color: '#FF0000',
+          lat: 91, // Invalid: > 90
+          long: -122.4194
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('success', false);
+    });
+
+    test('PUT /api/color should reject invalid longitude', async () => {
+      const response = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'test-user-666',
+          color: '#FF0000',
+          lat: 37.7749,
+          long: 181 // Invalid: > 180
+        });
+
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('success', false);
     });
@@ -147,47 +210,67 @@ describe('Viridis Application - Complete Test Suite', () => {
       const response = await request(app)
         .put('/api/color')
         .send(null);
-      
+
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('success', false);
     });
 
     test('PUT /api/color should reject color without #', async () => {
-      const invalidColor = { color: 'FF0000' };
+      const invalidColor = {
+        id: 'test-user-555',
+        color: 'FF0000',
+        lat: 37.7749,
+        long: -122.4194
+      };
       const response = await request(app)
         .put('/api/color')
         .send(invalidColor);
-      
+
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('success', false);
     });
 
     test('PUT /api/color should reject short color codes', async () => {
-      const invalidColor = { color: '#FF0' };
+      const invalidColor = {
+        id: 'test-user-444',
+        color: '#FF0',
+        lat: 37.7749,
+        long: -122.4194
+      };
       const response = await request(app)
         .put('/api/color')
         .send(invalidColor);
-      
+
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('success', false);
     });
 
     test('PUT /api/color should reject long color codes', async () => {
-      const invalidColor = { color: '#FF00000' };
+      const invalidColor = {
+        id: 'test-user-333',
+        color: '#FF00000',
+        lat: 37.7749,
+        long: -122.4194
+      };
       const response = await request(app)
         .put('/api/color')
         .send(invalidColor);
-      
+
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('success', false);
     });
 
     test('PUT /api/color should reject invalid hex characters', async () => {
-      const invalidColor = { color: '#GGGGGG' };
+      const invalidColor = {
+        id: 'test-user-222',
+        color: '#GGGGGG',
+        lat: 37.7749,
+        long: -122.4194
+      };
       const response = await request(app)
         .put('/api/color')
         .send(invalidColor);
-      
+
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty('success', false);
     });
@@ -195,12 +278,17 @@ describe('Viridis Application - Complete Test Suite', () => {
     test('PUT /api/color should handle Redis errors', async () => {
       // Mock Redis to throw an error
       mockRedisClient.ts.add.mockRejectedValueOnce(new Error('Redis error'));
-      
-      const validColor = { color: '#FF0000' };
+
+      const validColor = {
+        id: 'test-user-111',
+        color: '#FF0000',
+        lat: 37.7749,
+        long: -122.4194
+      };
       const response = await request(app)
         .put('/api/color')
         .send(validColor);
-      
+
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty('success', false);
     });
@@ -208,12 +296,17 @@ describe('Viridis Application - Complete Test Suite', () => {
     test('PUT /api/color should handle set function errors', async () => {
       // Mock Redis add to throw error to test set function error handling
       mockRedisClient.ts.add.mockRejectedValueOnce(new Error('Set function error'));
-      
-      const validColor = { color: '#00FF00' };
+
+      const validColor = {
+        id: 'test-user-000',
+        color: '#00FF00',
+        lat: 40.7128,
+        long: -74.0060
+      };
       const response = await request(app)
         .put('/api/color')
         .send(validColor);
-      
+
       expect(response.status).toBe(500);
       expect(response.body).toHaveProperty('success', false);
       expect(response.body).toHaveProperty('message', 'Internal server error');
@@ -231,12 +324,22 @@ describe('Viridis Application - Complete Test Suite', () => {
 
     test('should use Redis for color storage', async () => {
       mockRedisClient.ts.add.mockClear();
-      const validColor = { color: '#00FF00' };
+      mockRedisClient.hSet.mockClear();
+      mockRedisClient.zAdd.mockClear();
+
+      const validColor = {
+        id: 'test-redis-user',
+        color: '#00FF00',
+        lat: 37.7749,
+        long: -122.4194
+      };
       await request(app)
         .put('/api/color')
         .send(validColor);
-      
+
       expect(mockRedisClient.ts.add).toHaveBeenCalled();
+      expect(mockRedisClient.hSet).toHaveBeenCalled();
+      expect(mockRedisClient.zAdd).toHaveBeenCalled();
     });
 
     test('should use Redis for color retrieval', async () => {
@@ -425,14 +528,19 @@ describe('Viridis Application - Complete Test Suite', () => {
       // Get initial color
       const initialResponse = await request(app).get('/api/color');
       expect(initialResponse.status).toBe(200);
-      
+
       // Set new color
-      const newColor = { color: '#FF5500' };
+      const newColor = {
+        id: 'workflow-user',
+        color: '#FF5500',
+        lat: 37.7749,
+        long: -122.4194
+      };
       const setResponse = await request(app)
         .put('/api/color')
         .send(newColor);
       expect(setResponse.status).toBe(200);
-      
+
       // Verify color was set (Redis mock will handle this)
       const finalResponse = await request(app).get('/api/color');
       expect(finalResponse.status).toBe(200);
@@ -440,11 +548,16 @@ describe('Viridis Application - Complete Test Suite', () => {
 
     test('should handle multiple color updates', async () => {
       const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF'];
-      
-      for (const color of colors) {
+
+      for (let i = 0; i < colors.length; i++) {
         const response = await request(app)
           .put('/api/color')
-          .send({ color });
+          .send({
+            id: `multi-user-${i}`,
+            color: colors[i],
+            lat: 37.7749 + i * 0.1,
+            long: -122.4194 + i * 0.1
+          });
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
       }
@@ -452,17 +565,17 @@ describe('Viridis Application - Complete Test Suite', () => {
 
     test('should handle mixed valid and invalid requests', async () => {
       const requests = [
-        { color: '#FF0000', expectedStatus: 200 },
-        { color: 'invalid', expectedStatus: 400 },
-        { color: '#00FF00', expectedStatus: 200 },
-        { color: '#GG0000', expectedStatus: 400 },
-        { color: '#0000FF', expectedStatus: 200 }
+        { id: 'mixed-1', color: '#FF0000', lat: 37.7749, long: -122.4194, expectedStatus: 200 },
+        { id: 'mixed-2', color: 'invalid', lat: 37.7749, long: -122.4194, expectedStatus: 400 },
+        { id: 'mixed-3', color: '#00FF00', lat: 37.7749, long: -122.4194, expectedStatus: 200 },
+        { id: 'mixed-4', color: '#GG0000', lat: 37.7749, long: -122.4194, expectedStatus: 400 },
+        { id: 'mixed-5', color: '#0000FF', lat: 37.7749, long: -122.4194, expectedStatus: 200 }
       ];
-      
+
       for (const req of requests) {
         const response = await request(app)
           .put('/api/color')
-          .send({ color: req.color });
+          .send({ id: req.id, color: req.color, lat: req.lat, long: req.long });
         expect(response.status).toBe(req.expectedStatus);
       }
     });
@@ -472,14 +585,24 @@ describe('Viridis Application - Complete Test Suite', () => {
     test('should handle minimum color value', async () => {
       const response = await request(app)
         .put('/api/color')
-        .send({ color: '#000000' });
+        .send({
+          id: 'edge-min',
+          color: '#000000',
+          lat: 0,
+          long: 0
+        });
       expect(response.status).toBe(200);
     });
 
     test('should handle maximum color value', async () => {
       const response = await request(app)
         .put('/api/color')
-        .send({ color: '#FFFFFF' });
+        .send({
+          id: 'edge-max',
+          color: '#FFFFFF',
+          lat: 90,
+          long: 180
+        });
       expect(response.status).toBe(200);
     });
 
@@ -583,5 +706,135 @@ describe('Redis Time Series Error Handling', () => {
     
     // Restore original
     redis.createClient = originalCreateClient;
+  });
+});
+
+describe('Geolocation and Proximity Features', () => {
+  let app;
+
+  beforeAll(async () => {
+    // Use the same app instance
+    app = require('./index.js');
+    await new Promise(resolve => setTimeout(resolve, 100));
+  });
+
+  describe('Proximity Tests', () => {
+    test('GET /api/color should return proximity data when lat/long provided', async () => {
+      const response = await request(app)
+        .get('/api/color?lat=37.7749&long=-122.4194');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('color');
+      expect(response.body).toHaveProperty('average');
+      // proximityAverage may or may not be present depending on data
+    });
+
+    test('GET /api/color should handle invalid lat/long gracefully', async () => {
+      const response = await request(app)
+        .get('/api/color?lat=invalid&long=invalid');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('color');
+      expect(response.body).toHaveProperty('average');
+    });
+
+    test('PUT /api/color should store geolocation data', async () => {
+      mockRedisClient.hSet.mockClear();
+      mockRedisClient.zAdd.mockClear();
+
+      const submission = {
+        id: 'geo-test-user',
+        color: '#FF5733',
+        lat: 37.7749,
+        long: -122.4194
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(response.status).toBe(200);
+      expect(mockRedisClient.hSet).toHaveBeenCalledWith(
+        `viridis:user:${submission.id}`,
+        expect.objectContaining({
+          lat: submission.lat.toString(),
+          long: submission.long.toString(),
+          color: submission.color
+        })
+      );
+      expect(mockRedisClient.zAdd).toHaveBeenCalled();
+    });
+
+    test('PUT /api/color should reject out-of-range latitude', async () => {
+      const response = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'invalid-lat',
+          color: '#FF0000',
+          lat: 100, // > 90
+          long: 0
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    test('PUT /api/color should reject out-of-range longitude', async () => {
+      const response = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'invalid-long',
+          color: '#FF0000',
+          lat: 0,
+          long: 200 // > 180
+        });
+
+      expect(response.status).toBe(400);
+    });
+
+    test('PUT /api/color should accept boundary latitude values', async () => {
+      const response1 = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'boundary-lat-1',
+          color: '#FF0000',
+          lat: -90,
+          long: 0
+        });
+
+      const response2 = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'boundary-lat-2',
+          color: '#FF0000',
+          lat: 90,
+          long: 0
+        });
+
+      expect(response1.status).toBe(200);
+      expect(response2.status).toBe(200);
+    });
+
+    test('PUT /api/color should accept boundary longitude values', async () => {
+      const response1 = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'boundary-long-1',
+          color: '#FF0000',
+          lat: 0,
+          long: -180
+        });
+
+      const response2 = await request(app)
+        .put('/api/color')
+        .send({
+          id: 'boundary-long-2',
+          color: '#FF0000',
+          lat: 0,
+          long: 180
+        });
+
+      expect(response1.status).toBe(200);
+      expect(response2.status).toBe(200);
+    });
   });
 });
