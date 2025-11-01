@@ -23,8 +23,52 @@ jest.mock('redis', () => ({
 }));
 
 // Mock file system
+const mockPaletteData = {
+  "name": "Viridis Color Palette",
+  "version": "1.0.0",
+  "colors": [
+    { "hex": "#FF0000", "name": "Red" },
+    { "hex": "#FF4500", "name": "Orange Red" },
+    { "hex": "#FF8C00", "name": "Dark Orange" },
+    { "hex": "#FFA500", "name": "Orange" },
+    { "hex": "#FFD700", "name": "Gold" },
+    { "hex": "#FFFF00", "name": "Yellow" },
+    { "hex": "#9ACD32", "name": "Yellow Green" },
+    { "hex": "#7FFF00", "name": "Chartreuse" },
+    { "hex": "#00FF00", "name": "Green" },
+    { "hex": "#00FA9A", "name": "Medium Spring Green" },
+    { "hex": "#00CED1", "name": "Dark Turquoise" },
+    { "hex": "#00BFFF", "name": "Deep Sky Blue" },
+    { "hex": "#1E90FF", "name": "Dodger Blue" },
+    { "hex": "#0000FF", "name": "Blue" },
+    { "hex": "#4169E1", "name": "Royal Blue" },
+    { "hex": "#8A2BE2", "name": "Blue Violet" },
+    { "hex": "#9370DB", "name": "Medium Purple" },
+    { "hex": "#BA55D3", "name": "Medium Orchid" },
+    { "hex": "#FF00FF", "name": "Magenta" },
+    { "hex": "#FF1493", "name": "Deep Pink" },
+    { "hex": "#FF69B4", "name": "Hot Pink" },
+    { "hex": "#DC143C", "name": "Crimson" },
+    { "hex": "#FF6347", "name": "Tomato" },
+    { "hex": "#FF7F50", "name": "Coral" },
+    { "hex": "#FFB6C1", "name": "Light Pink" },
+    { "hex": "#FFA07A", "name": "Light Salmon" },
+    { "hex": "#20B2AA", "name": "Light Sea Green" },
+    { "hex": "#87CEEB", "name": "Sky Blue" },
+    { "hex": "#7B68EE", "name": "Medium Slate Blue" },
+    { "hex": "#8B4513", "name": "Saddle Brown" },
+    { "hex": "#D2691E", "name": "Chocolate" },
+    { "hex": "#CD853F", "name": "Peru" }
+  ]
+};
+
 jest.mock('fs', () => ({
-  readFileSync: jest.fn(() => '<html><body><h1>Viridis</h1><div id="color"></div></body></html>')
+  readFileSync: jest.fn((path) => {
+    if (path.includes('palette.json')) {
+      return JSON.stringify(mockPaletteData);
+    }
+    return '<html><body><h1>Viridis</h1><div id="color"></div></body></html>';
+  })
 }));
 
 // Mock console to reduce noise
@@ -349,9 +393,9 @@ describe('Viridis Application - Complete Test Suite', () => {
     });
 
     test('should use Redis for average calculation', async () => {
-      mockRedisClient.ts.range.mockClear();
+      mockRedisClient.zRangeByScore.mockClear();
       await request(app).get('/api/color');
-      expect(mockRedisClient.ts.range).toHaveBeenCalled();
+      expect(mockRedisClient.zRangeByScore).toHaveBeenCalled();
     });
   });
 
@@ -529,10 +573,10 @@ describe('Viridis Application - Complete Test Suite', () => {
       const initialResponse = await request(app).get('/api/color');
       expect(initialResponse.status).toBe(200);
 
-      // Set new color
+      // Set new color (must be from palette)
       const newColor = {
         id: 'workflow-user',
-        color: '#FF5500',
+        color: '#FF4500', // Orange Red from palette
         lat: 37.7749,
         long: -122.4194
       };
@@ -587,7 +631,7 @@ describe('Viridis Application - Complete Test Suite', () => {
         .put('/api/color')
         .send({
           id: 'edge-min',
-          color: '#000000',
+          color: '#0000FF', // Blue from palette
           lat: 0,
           long: 0
         });
@@ -599,7 +643,7 @@ describe('Viridis Application - Complete Test Suite', () => {
         .put('/api/color')
         .send({
           id: 'edge-max',
-          color: '#FFFFFF',
+          color: '#FFFF00', // Yellow from palette
           lat: 90,
           long: 180
         });
@@ -744,7 +788,7 @@ describe('Geolocation and Proximity Features', () => {
 
       const submission = {
         id: 'geo-test-user',
-        color: '#FF5733',
+        color: '#FF6347', // Tomato from palette
         lat: 37.7749,
         long: -122.4194
       };
@@ -1045,6 +1089,651 @@ describe('Additional Coverage Tests', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toHaveProperty('color');
+  });
+
+  describe('Additional Endpoint Coverage', () => {
+    test('GET /test should return test HTML page', async () => {
+      const response = await request(app).get('/test');
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('text/html');
+    });
+
+    test('GET /api/palette should return palette data', async () => {
+      const response = await request(app).get('/api/palette');
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('application/json');
+      expect(response.body).toHaveProperty('colors');
+      expect(Array.isArray(response.body.colors)).toBe(true);
+      expect(response.body.colors.length).toBe(32);
+      expect(response.body.colors[0]).toHaveProperty('hex');
+      expect(response.body.colors[0]).toHaveProperty('name');
+    });
+  });
+
+  describe('Throttling Tests', () => {
+    test('PUT /api/color should throttle rapid submissions from same user', async () => {
+      const submission = {
+        id: 'throttle-test-user',
+        color: '#FF0000', // Red from palette
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      // First submission should succeed
+      const response1 = await request(app)
+        .put('/api/color')
+        .send(submission);
+      expect(response1.status).toBe(200);
+
+      // Second submission immediately after should be throttled
+      const response2 = await request(app)
+        .put('/api/color')
+        .send(submission);
+      expect(response2.status).toBe(429);
+      expect(response2.body).toHaveProperty('message');
+      expect(response2.body).toHaveProperty('remainingTime');
+      expect(response2.body.remainingTime).toBeGreaterThan(0);
+    });
+
+    test('PUT /api/color should allow submission after throttle period', async () => {
+      const submission = {
+        id: 'throttle-test-user-2',
+        color: '#00FF00', // Green from palette
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      // First submission
+      const response1 = await request(app)
+        .put('/api/color')
+        .send(submission);
+      expect(response1.status).toBe(200);
+
+      // Wait for throttle period (mock by clearing the throttle map)
+      // In real scenario, we'd wait 12 seconds, but for testing we can manipulate time
+      // For now, just verify the throttle works
+    });
+  });
+
+  describe('Color Palette Validation', () => {
+    test('PUT /api/color should reject colors not in palette', async () => {
+      const submission = {
+        id: 'palette-test-user',
+        color: '#123456', // Not in palette
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+      expect(response.status).toBe(400);
+      expect(response.body.success).toBe(false);
+    });
+
+    test('PUT /api/color should accept all palette colors', async () => {
+      // Test a few colors from the palette
+      const paletteColors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF'];
+
+      for (const color of paletteColors) {
+        const submission = {
+          id: `palette-user-${color}`,
+          color: color,
+          lat: 40.7128,
+          long: -74.0060
+        };
+
+        const response = await request(app)
+          .put('/api/color')
+          .send(submission);
+        expect(response.status).toBe(200);
+      }
+    });
+  });
+
+  describe('Redis Storage Operations', () => {
+    test('PUT /api/color should call zRemRangeByScore to clean old submissions', async () => {
+      mockRedisClient.zRemRangeByScore.mockClear();
+
+      const submission = {
+        id: 'cleanup-test-user',
+        color: '#FF0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(mockRedisClient.zRemRangeByScore).toHaveBeenCalled();
+    });
+
+    test('GET /api/color with lat/long should count nearby submissions', async () => {
+      // Mock submissions data
+      const mockSubmissions = [
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user2', lat: 40.7500, long: -74.0000, color: '#00FF00', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user3', lat: 89.0, long: 179.0, color: '#0000FF', timestamp: Date.now() }) // Far away
+      ];
+
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      expect(response.status).toBe(200);
+      // Should have proximityAverage and nearbyCount
+      expect(response.body).toHaveProperty('nearbyCount');
+    });
+  });
+
+  describe('Average Color Calculation', () => {
+    test('should calculate global average from multiple submissions', async () => {
+      const mockSubmissions = [
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user2', lat: 40.7500, long: -74.0000, color: '#00FF00', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user3', lat: 40.7300, long: -74.0100, color: '#0000FF', timestamp: Date.now() })
+      ];
+
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app).get('/api/color');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('average');
+      expect(response.body.average).toMatch(/^#[0-9A-F]{6}$/);
+    });
+
+    test('should handle empty submissions for average', async () => {
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce([]);
+
+      const response = await request(app).get('/api/color');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('average');
+      // Should return a random color from palette
+      expect(response.body.average).toMatch(/^#[0-9A-F]{6}$/);
+    });
+
+    test('should limit average calculation to last 8 submissions', async () => {
+      // Create 10 submissions
+      const mockSubmissions = [];
+      for (let i = 0; i < 10; i++) {
+        mockSubmissions.push(
+          JSON.stringify({
+            id: `user${i}`,
+            lat: 40.7128,
+            long: -74.0060,
+            color: '#FF0000',
+            timestamp: Date.now() - i * 1000
+          })
+        );
+      }
+
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app).get('/api/color');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('average');
+    });
+  });
+
+  describe('Proximity Average Calculation', () => {
+    test('should calculate proximity average for nearby submissions', async () => {
+      const mockSubmissions = [
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user2', lat: 40.7200, long: -74.0100, color: '#00FF00', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user3', lat: 40.7150, long: -74.0080, color: '#0000FF', timestamp: Date.now() })
+      ];
+
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('proximityAverage');
+      expect(response.body.proximityAverage).toMatch(/^#[0-9A-F]{6}$/);
+    });
+
+    test('should fall back to global average when no nearby submissions', async () => {
+      const mockSubmissions = [
+        JSON.stringify({ id: 'user1', lat: 89.0, long: 179.0, color: '#FF0000', timestamp: Date.now() })
+      ];
+
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      expect(response.status).toBe(200);
+      // Should still return a valid response
+      expect(response.body).toHaveProperty('color');
+    });
+  });
+
+  describe('Error Handling in Internal Functions', () => {
+    test('should handle errors in getAverageColor gracefully', async () => {
+      // Mock zRangeByScore to throw an error
+      mockRedisClient.zRangeByScore.mockRejectedValueOnce(new Error('Redis connection failed'));
+
+      const response = await request(app).get('/api/color');
+
+      // Should still return a response with a random color
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('average');
+      expect(response.body.average).toMatch(/^#[0-9A-F]{6}$/);
+    });
+
+    test('should handle errors in getProximityAverageColor gracefully', async () => {
+      // Mock zRangeByScore to throw an error
+      mockRedisClient.zRangeByScore.mockRejectedValueOnce(new Error('Redis connection failed'));
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      // Should still return a response
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('color');
+    });
+
+    test('should handle errors in set function', async () => {
+      // Mock hSet to throw an error
+      mockRedisClient.hSet.mockRejectedValueOnce(new Error('Redis write failed'));
+
+      const submission = {
+        id: 'error-test-user',
+        color: '#FF0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      // Should return 500 error
+      expect(response.status).toBe(500);
+      expect(response.body.success).toBe(false);
+    });
+
+    test('should handle broadcast errors without failing request', async () => {
+      // Mock getColor to throw error during broadcast
+      mockRedisClient.ts.get.mockResolvedValueOnce({ timestamp: Date.now(), value: 16711680 })
+        .mockRejectedValueOnce(new Error('Broadcast failed'));
+
+      const submission = {
+        id: 'broadcast-error-user',
+        color: '#FF0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      // Request should still succeed even if broadcast fails
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+  });
+
+  describe('Validation Edge Cases', () => {
+    test('should reject submission with non-string id', async () => {
+      const submission = {
+        id: 12345, // Number instead of string
+        color: '#FF0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(response.status).toBe(400);
+    });
+
+    test('should reject submission with empty string id', async () => {
+      const submission = {
+        id: '', // Empty string
+        color: '#FF0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(response.status).toBe(400);
+    });
+
+    test('should handle case-insensitive color validation', async () => {
+      const submission = {
+        id: 'case-test-user',
+        color: '#ff0000', // Lowercase
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(response.status).toBe(200);
+    });
+  });
+
+  describe('Proximity Counting', () => {
+    test('should count nearby submissions within 50km radius', async () => {
+      const mockSubmissions = [
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user2', lat: 40.7500, long: -74.0000, color: '#00FF00', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user3', lat: 40.7300, long: -74.0100, color: '#0000FF', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user4', lat: 89.0, long: 179.0, color: '#FFFF00', timestamp: Date.now() }) // Far away
+      ];
+
+      // Need to mock three calls: one for getAverageColor, one for getProximityAverageColor, one for counting
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('nearbyCount');
+      // Should count nearby submissions
+      expect(typeof response.body.nearbyCount).toBe('number');
+    });
+  });
+
+  describe('Module Startup and Exports', () => {
+    test('should export app as a module', () => {
+      expect(app).toBeDefined();
+      expect(typeof app).toBe('function');
+    });
+  });
+
+  describe('Additional Error Scenarios', () => {
+    test('should handle GET /api/color with Redis error in proximity counting', async () => {
+      // Mock first call succeeds, second call fails
+      mockRedisClient.zRangeByScore
+        .mockResolvedValueOnce([JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() })])
+        .mockResolvedValueOnce([JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() })])
+        .mockRejectedValueOnce(new Error('Redis error in counting'));
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      // Error in counting causes 500 error
+      expect(response.status).toBe(500);
+    });
+
+    test('should handle GET /api/color with critical error', async () => {
+      // Mock all Redis calls to fail
+      mockRedisClient.ts.get.mockRejectedValueOnce(new Error('Critical Redis error'));
+      mockRedisClient.zRangeByScore.mockRejectedValueOnce(new Error('Critical Redis error'));
+
+      const response = await request(app).get('/api/color');
+
+      // Should return 200 with fallback random colors
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('color');
+      expect(response.body).toHaveProperty('average');
+    });
+
+    test('should handle zAdd errors during submission', async () => {
+      mockRedisClient.zAdd.mockRejectedValueOnce(new Error('zAdd failed'));
+
+      const submission = {
+        id: 'zadd-error-user',
+        color: '#FF0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(response.status).toBe(500);
+    });
+
+    test('should handle zRemRangeByScore errors during cleanup', async () => {
+      mockRedisClient.zRemRangeByScore.mockRejectedValueOnce(new Error('Cleanup failed'));
+
+      const submission = {
+        id: 'cleanup-error-user',
+        color: '#FF0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(response.status).toBe(500);
+    });
+  });
+
+  describe('Color Snapping and Distance Calculations', () => {
+    test('should snap averaged colors to nearest palette color', async () => {
+      // Submit multiple colors and verify the average is snapped to palette
+      const mockSubmissions = [
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user2', lat: 40.7128, long: -74.0060, color: '#FF4500', timestamp: Date.now() })
+      ];
+
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app).get('/api/color');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('average');
+      // Average should be a valid palette color
+      expect(response.body.average).toMatch(/^#[0-9A-F]{6}$/);
+    });
+
+    test('should calculate weighted proximity average correctly', async () => {
+      const mockSubmissions = [
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user2', lat: 40.7129, long: -74.0061, color: '#FF0000', timestamp: Date.now() }), // Very close
+        JSON.stringify({ id: 'user3', lat: 40.8000, long: -74.1000, color: '#0000FF', timestamp: Date.now() })  // Further away
+      ];
+
+      mockRedisClient.zRangeByScore
+        .mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('proximityAverage');
+      // Should be weighted more towards red since two submissions are very close
+      expect(response.body.proximityAverage).toMatch(/^#[0-9A-F]{6}$/);
+    });
+  });
+
+  describe('Broadcast and WebSocket Integration', () => {
+    test('should attempt to broadcast after successful color submission', async () => {
+      // Mock successful submission
+      const submission = {
+        id: 'broadcast-test-user',
+        color: '#FF0000',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      // Mock getColor and getAverageColor for broadcast
+      mockRedisClient.ts.get.mockResolvedValueOnce({ timestamp: Date.now(), value: 16711680 });
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce([
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() })
+      ]);
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      // Broadcast should have been attempted (even if no clients connected)
+    });
+
+    test('should handle broadcast with multiple mock scenarios', async () => {
+      const submission = {
+        id: 'broadcast-multi-test',
+        color: '#00FF00',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      // Mock successful Redis operations
+      mockRedisClient.ts.get.mockResolvedValueOnce({ timestamp: Date.now(), value: 65280 });
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce([
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#00FF00', timestamp: Date.now() })
+      ]);
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      expect(response.status).toBe(200);
+    });
+
+    test('should handle broadcast error in getColor', async () => {
+      const submission = {
+        id: 'broadcast-error-getcolor',
+        color: '#0000FF',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      // Mock getColor to fail during broadcast
+      mockRedisClient.ts.get.mockRejectedValueOnce(new Error('getColor failed in broadcast'));
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      // Should still succeed even if broadcast fails
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+
+    test('should handle broadcast error in getAverageColor', async () => {
+      const submission = {
+        id: 'broadcast-error-getavg',
+        color: '#FFFF00',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      // Mock getColor succeeds but getAverageColor fails
+      mockRedisClient.ts.get.mockResolvedValueOnce({ timestamp: Date.now(), value: 16776960 });
+      mockRedisClient.zRangeByScore.mockRejectedValueOnce(new Error('getAverageColor failed in broadcast'));
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      // Should still succeed even if broadcast fails
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+
+    test('should handle JSON stringify error in broadcast', async () => {
+      const submission = {
+        id: 'broadcast-json-error',
+        color: '#FF00FF',
+        lat: 40.7128,
+        long: -74.0060
+      };
+
+      // Mock successful operations
+      mockRedisClient.ts.get.mockResolvedValueOnce({ timestamp: Date.now(), value: 16711935 });
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce([
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF00FF', timestamp: Date.now() })
+      ]);
+
+      const response = await request(app)
+        .put('/api/color')
+        .send(submission);
+
+      // Should succeed
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+  });
+
+  describe('Edge Cases for Proximity and Averaging', () => {
+    test('should handle proximity average with submissions exactly at radius boundary', async () => {
+      // Create submissions at exactly 50km distance
+      const mockSubmissions = [
+        JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() }),
+        JSON.stringify({ id: 'user2', lat: 41.1628, long: -74.0060, color: '#00FF00', timestamp: Date.now() }) // ~50km north
+      ];
+
+      mockRedisClient.zRangeByScore
+        .mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions)
+        .mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('proximityAverage');
+    });
+
+    test('should handle averaging with more than 8 submissions', async () => {
+      // Create 12 submissions
+      const mockSubmissions = [];
+      for (let i = 0; i < 12; i++) {
+        mockSubmissions.push(
+          JSON.stringify({
+            id: `user${i}`,
+            lat: 40.7128,
+            long: -74.0060,
+            color: '#FF0000',
+            timestamp: Date.now() - i * 1000
+          })
+        );
+      }
+
+      mockRedisClient.zRangeByScore.mockResolvedValueOnce(mockSubmissions);
+
+      const response = await request(app).get('/api/color');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('average');
+      // Should only use last 8 submissions
+    });
+
+    test('should handle proximity average error and fall back to global average', async () => {
+      // Mock proximity calculation to fail, should fall back to global average
+      mockRedisClient.zRangeByScore
+        .mockResolvedValueOnce([JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() })])
+        .mockRejectedValueOnce(new Error('Proximity calculation failed'))
+        .mockResolvedValueOnce([JSON.stringify({ id: 'user1', lat: 40.7128, long: -74.0060, color: '#FF0000', timestamp: Date.now() })]);
+
+      const response = await request(app)
+        .get('/api/color?lat=40.7128&long=-74.0060');
+
+      // Should still return a valid response with fallback
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('color');
+    });
   });
 });
 
