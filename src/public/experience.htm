@@ -190,7 +190,7 @@
         backdrop-filter: blur(10px);
         border: 2px solid rgba(255, 255, 255, 0.3);
         cursor: pointer;
-        display: flex;
+        display: none; /* Hidden but keeping HTML */
         align-items: center;
         justify-content: center;
         font-family: 'Proza Libre', sans-serif;
@@ -256,6 +256,96 @@
         font-weight: 500;
     }
 
+    /* Live color feed */
+    .live-feed {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(10px);
+        border-radius: 25px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        z-index: 1000;
+    }
+
+    .live-indicator {
+        font-family: 'Fira Mono', monospace;
+        font-size: 14px;
+        color: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .live-pulse {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.9);
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    .color-feed {
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        max-width: 300px;
+        overflow: hidden;
+    }
+
+    .color-dot {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        animation: colorAppear 0.3s ease-out, colorFade 10s ease-out forwards;
+        flex-shrink: 0;
+    }
+
+    @keyframes colorAppear {
+        from {
+            opacity: 0;
+            transform: scale(0);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+
+    @keyframes colorFade {
+        0% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        80% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        100% {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 0.5;
+            transform: scale(1.2);
+        }
+    }
+
     .drawer-handle {
         position: fixed;
         top: 0;
@@ -309,7 +399,7 @@
             </div>
         </div>
 
-        <!-- Info button and panel -->
+        <!-- Info button and panel (hidden but keeping HTML) -->
         <div class="info-button">i</div>
         <div class="info-panel">
             <h2>Viridis</h2>
@@ -326,6 +416,21 @@
                 <div class="color-square" v-if="globalAverage" v-bind:style="{backgroundColor: globalAverage}">
                     <div class="color-label">🌍</div>
                     <div class="color-tooltip">{{ globalAverage }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live color feed -->
+        <div class="live-feed">
+            <div class="live-indicator">
+                <span class="live-pulse"></span>
+                <span>Live</span>
+            </div>
+            <div class="color-feed">
+                <div v-for="feedColor in colorFeed"
+                     class="color-dot"
+                     v-bind:style="{ backgroundColor: feedColor.color }"
+                     v-bind:key="feedColor.id">
                 </div>
             </div>
         </div>
@@ -354,7 +459,9 @@
                 rainbowInterval: null,
                 palette: [],  // Will be loaded from server
                 displayedColors: [],  // 9 randomly selected colors to display
-                drawerOpen: false  // Drawer state
+                drawerOpen: false,  // Drawer state
+                colorFeed: [],  // Live feed of incoming colors
+                connectionStatus: 'connecting'  // 'connecting', 'online', 'live', 'disconnected'
             };
         },
         computed: {
@@ -403,6 +510,12 @@
                 if (this.connectionFailed) {
                     this.connectionFailed = false;
                     this.stopRainbow();
+                }
+
+                // Add color to live feed
+                if (msg.color) {
+                    const newColor = msg.color.startsWith('#') ? msg.color : '#' + msg.color;
+                    this.addColorToFeed(newColor);
                 }
 
                 // Update global average display
@@ -668,6 +781,27 @@
                     } catch (err) { console.error(err) }
                 } else {
                     this.socket.send(message)
+                }
+            },
+            addColorToFeed(color) {
+                // Add color to the beginning of the feed with unique ID
+                const colorItem = {
+                    id: Date.now() + Math.random(),
+                    color: color
+                };
+                this.colorFeed.unshift(colorItem);
+
+                // Remove the color after 10 seconds
+                setTimeout(() => {
+                    const index = this.colorFeed.findIndex(item => item.id === colorItem.id);
+                    if (index !== -1) {
+                        this.colorFeed.splice(index, 1);
+                    }
+                }, 10000);
+
+                // Keep max 20 colors in feed to prevent memory issues
+                if (this.colorFeed.length > 20) {
+                    this.colorFeed = this.colorFeed.slice(0, 20);
                 }
             }
 

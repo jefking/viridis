@@ -106,6 +106,10 @@ const wsConnections = new Set();
 const userSubmissionTimes = new Map();
 const THROTTLE_SECONDS = 12;
 
+// Track last activity time for background worker
+let lastActivityTime = Date.now();
+const INACTIVITY_THRESHOLD = 90 * 1000; // 90 seconds
+
 // Clean up old throttle entries every 5 minutes
 setInterval(() => {
     const now = Date.now();
@@ -122,6 +126,59 @@ setInterval(() => {
     }
 }, 5 * 60 * 1000);
 
+// Background worker: Generate random color if no activity for 90 seconds
+setInterval(async () => {
+    const now = Date.now();
+    const timeSinceLastActivity = now - lastActivityTime;
+
+    if (timeSinceLastActivity >= INACTIVITY_THRESHOLD) {
+        console.log(`No activity for ${Math.floor(timeSinceLastActivity / 1000)}s. Generating random color...`);
+
+        // Generate random color from palette
+        const randomColor = COLOR_PALETTE[Math.floor(Math.random() * COLOR_PALETTE.length)];
+        const colorHex = randomColor.toString(16).padStart(6, '0').toUpperCase();
+
+        // Generate random location (somewhere on Earth)
+        const randomLat = (Math.random() * 180) - 90; // -90 to 90
+        const randomLong = (Math.random() * 360) - 180; // -180 to 180
+
+        // Store the submission
+        const submission = {
+            id: 'background-worker-' + Date.now(),
+            lat: randomLat,
+            long: randomLong,
+            color: '#' + colorHex,
+            timestamp: now,
+            isBackgroundGenerated: true
+        };
+
+        try {
+            // Store in Redis sorted set
+            await rClient.zAdd('viridis:submissions', {
+                score: now,
+                value: JSON.stringify(submission)
+            });
+
+            console.log('Background worker generated:', submission);
+
+            // Broadcast the new color
+            const average = await getAverageColor();
+            const broadcastData = {
+                color: '#' + colorHex,
+                average: '#' + average,
+                isBackgroundGenerated: true
+            };
+
+            broadcast(broadcastData);
+
+            // Update last activity time
+            lastActivityTime = now;
+        } catch (error) {
+            console.error('Background worker error:', error);
+        }
+    }
+}, 10 * 1000); // Check every 10 seconds
+
 // Middleware to handle JSON parsing errors
 app.use((error, req, res, next) => {
     if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
@@ -129,6 +186,18 @@ app.use((error, req, res, next) => {
     }
     next();
 });
+
+// Helper function to broadcast to all WebSocket clients
+function broadcast(data) {
+    const message = JSON.stringify(data);
+    console.log(`Broadcasting to ${wsConnections.size} clients:`, message);
+
+    wsConnections.forEach(client => {
+        if (client.readyState === 1) { // 1 = OPEN
+            client.send(message);
+        }
+    });
+}
 
 app.get('/api/palette', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
@@ -242,23 +311,18 @@ app.put('/api/color', async (req, res) => {
         // Update last submission time
         userSubmissionTimes.set(userId, now);
 
+        // Update last activity time for background worker
+        lastActivityTime = now;
+
         await set(model);
 
         // Broadcast the new global average to all connected clients
         try {
             const color = await getColor();
             const average = await getAverageColor();
-            const message = JSON.stringify({
+            broadcast({
                 color: '#' + color,
                 average: '#' + average
-            });
-
-            console.log(`Broadcasting to ${wsConnections.size} clients:`, message);
-
-            wsConnections.forEach(client => {
-                if (client.readyState === 1) { // 1 = OPEN
-                    client.send(message);
-                }
             });
         } catch (broadcastError) {
             console.error('Error broadcasting:', broadcastError);
