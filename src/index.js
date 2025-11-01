@@ -38,7 +38,7 @@ const COLOR_PALETTE = [
     0xFFFF00, // Yellow
     0x9ACD32, // Yellow Green
     0x7FFF00, // Chartreuse
-    0x00FF00, // Lime
+    0x00FF00, // Green
     0x00FA9A, // Medium Spring Green
     0x00CED1, // Dark Turquoise
     0x00BFFF, // Deep Sky Blue
@@ -52,13 +52,13 @@ const COLOR_PALETTE = [
     0xFF1493, // Deep Pink
     0xFF69B4, // Hot Pink
     0xDC143C, // Crimson
-    0xFFFFFF, // White
-    0xF0F0F0, // Light Gray
-    0xC0C0C0, // Silver
-    0x808080, // Gray
-    0x696969, // Dim Gray
-    0x404040, // Dark Gray
-    0x000000, // Black
+    0xFF6347, // Tomato
+    0xFF7F50, // Coral
+    0xFFB6C1, // Light Pink
+    0xFFA07A, // Light Salmon
+    0x20B2AA, // Light Sea Green
+    0x87CEEB, // Sky Blue
+    0x7B68EE, // Medium Slate Blue
     0x8B4513, // Saddle Brown
     0xD2691E, // Chocolate
     0xCD853F  // Peru
