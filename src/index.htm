@@ -144,15 +144,13 @@
 
     .color-label {
         position: absolute;
-        top: -30px;
-        left: 0;
-        right: 0;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
         text-align: center;
-        font-family: 'Proza Libre', sans-serif;
-        font-size: 14px;
-        font-weight: 400;
-        color: rgba(255, 255, 255, 0.9);
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+        font-size: 48px;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
     }
 
     .throttle-message {
@@ -213,7 +211,13 @@
         visibility: hidden;
         transition: opacity 0.3s, visibility 0.3s;
         z-index: 999;
-        min-width: 250px;
+        min-width: 300px;
+    }
+
+    .info-panel .color-display {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
     }
 
     .info-button:hover + .info-panel,
@@ -246,17 +250,6 @@
 
 <body>
     <div id="app" v-bind:style="{backgroundColor: displayColor, color: textColor}">
-        <div class="color-display">
-            <div class="color-square" v-bind:style="{backgroundColor: color}">
-                <div class="color-label">Your Color</div>
-                <div class="color-tooltip">{{ color }}</div>
-            </div>
-            <div class="color-square" v-if="globalAverage" v-bind:style="{backgroundColor: globalAverage}">
-                <div class="color-label">Global Average</div>
-                <div class="color-tooltip">{{ globalAverage }}</div>
-            </div>
-        </div>
-
         <div class="color-picker-container">
             <div class="color-picker-title">Select Your Color</div>
             <div class="palette-grid">
@@ -278,6 +271,17 @@
             <p><strong>Latitude:</strong> {{ lat }}</p>
             <p><strong>Longitude:</strong> {{ long }}</p>
             <p v-if="proximityAverage"><strong>Nearby:</strong> {{ nearbyCount }} within 50km</p>
+
+            <div class="color-display">
+                <div class="color-square" v-bind:style="{backgroundColor: color}">
+                    <div class="color-label">👤</div>
+                    <div class="color-tooltip">{{ color }}</div>
+                </div>
+                <div class="color-square" v-if="globalAverage" v-bind:style="{backgroundColor: globalAverage}">
+                    <div class="color-label">🌍</div>
+                    <div class="color-tooltip">{{ globalAverage }}</div>
+                </div>
+            </div>
         </div>
     </div>
 </body>
