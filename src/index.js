@@ -4,16 +4,65 @@ const http = require('http');
 const redis = require('redis');
 const { TimeSeriesDuplicatePolicies, TimeSeriesEncoding, TimeSeriesAggregationType } = require('@node-redis/time-series');
 const fs = require('fs');
+const path = require('path');
 const { env } = require('process');
 const { response } = require('express');
 
 const conVars = {
-    url: env.REDIS_URL || '127.0.0.1:6379'
+    url: env.REDIS_URL || 'redis://127.0.0.1:6379'
 };
 const port = 9099;
 const makeColorCode = '0123456789ABCDEF';
 
 const rtsKey = 'viridis:color';
+
+// Load color palette from JSON file
+let PALETTE_DATA = null;
+try {
+    const paletteFile = fs.readFileSync(path.join(__dirname, 'palette.json'), 'utf8');
+    PALETTE_DATA = JSON.parse(paletteFile);
+    console.log(`Loaded ${PALETTE_DATA.colors.length} colors from palette`);
+} catch (error) {
+    console.error('Error loading palette.json:', error);
+    process.exit(1);
+}
+
+// Color palette - 32 carefully selected colors to prevent muddy averaging
+// These colors are chosen to be distinct and aesthetically pleasing
+const COLOR_PALETTE = [
+    0xFF0000, // Red
+    0xFF4500, // Orange Red
+    0xFF8C00, // Dark Orange
+    0xFFA500, // Orange
+    0xFFD700, // Gold
+    0xFFFF00, // Yellow
+    0x9ACD32, // Yellow Green
+    0x7FFF00, // Chartreuse
+    0x00FF00, // Lime
+    0x00FA9A, // Medium Spring Green
+    0x00CED1, // Dark Turquoise
+    0x00BFFF, // Deep Sky Blue
+    0x1E90FF, // Dodger Blue
+    0x0000FF, // Blue
+    0x4169E1, // Royal Blue
+    0x8A2BE2, // Blue Violet
+    0x9370DB, // Medium Purple
+    0xBA55D3, // Medium Orchid
+    0xFF00FF, // Magenta
+    0xFF1493, // Deep Pink
+    0xFF69B4, // Hot Pink
+    0xDC143C, // Crimson
+    0xFFFFFF, // White
+    0xF0F0F0, // Light Gray
+    0xC0C0C0, // Silver
+    0x808080, // Gray
+    0x696969, // Dim Gray
+    0x404040, // Dark Gray
+    0x000000, // Black
+    0x8B4513, // Saddle Brown
+    0xD2691E, // Chocolate
+    0xCD853F  // Peru
+];
 
 const startRedisTimeSeries = async (client) => {
     try {
@@ -33,6 +82,7 @@ const startRedisTimeSeries = async (client) => {
 };
 
 const html = fs.readFileSync('./index.htm', 'utf-8');
+const testHtml = fs.readFileSync('./color-test.htm', 'utf-8');
 const rClient = redis.createClient(conVars);
 rClient.connect();
 startRedisTimeSeries(rClient);
@@ -49,6 +99,26 @@ app.use(express.static(__dirname));
 // Track all WebSocket connections for broadcasting
 const wsConnections = new Set();
 
+// Track last submission time per user ID (12 second throttle)
+const userSubmissionTimes = new Map();
+const THROTTLE_SECONDS = 12;
+
+// Clean up old throttle entries every 5 minutes
+setInterval(() => {
+    const now = Date.now();
+    const cutoff = now - (THROTTLE_SECONDS * 2 * 1000); // Keep entries for 2x throttle time
+
+    for (const [userId, timestamp] of userSubmissionTimes.entries()) {
+        if (timestamp < cutoff) {
+            userSubmissionTimes.delete(userId);
+        }
+    }
+
+    if (userSubmissionTimes.size > 0) {
+        console.log(`Cleaned throttle map. ${userSubmissionTimes.size} active users.`);
+    }
+}, 5 * 60 * 1000);
+
 // Middleware to handle JSON parsing errors
 app.use((error, req, res, next) => {
     if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
@@ -60,6 +130,16 @@ app.use((error, req, res, next) => {
 app.get('/', (req, res) => {
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
+});
+
+app.get('/test', (req, res) => {
+    res.setHeader('Content-Type', 'text/html');
+    res.send(testHtml);
+});
+
+app.get('/api/palette', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.json(PALETTE_DATA);
 });
 
 app.get('/api/color', async (req, res) => {
@@ -122,8 +202,8 @@ app.ws('/ws/color', function (ws, req) {
             const color = await getColor();
             const average = await getAverageColor();
             ws.send(JSON.stringify({
-                color: color,
-                average: average
+                color: '#' + color,
+                average: '#' + average
             }));
         } catch (error) {
             console.error('WebSocket error:', error);
@@ -148,6 +228,27 @@ app.put('/api/color', async (req, res) => {
             });
         }
 
+        // Check throttle - user can only submit once every 12 seconds
+        const now = Date.now();
+        const userId = model.id;
+        const lastSubmission = userSubmissionTimes.get(userId);
+
+        if (lastSubmission) {
+            const timeSinceLastSubmission = (now - lastSubmission) / 1000; // in seconds
+            if (timeSinceLastSubmission < THROTTLE_SECONDS) {
+                const remainingTime = Math.ceil(THROTTLE_SECONDS - timeSinceLastSubmission);
+                console.log(`User ${userId} throttled. ${remainingTime}s remaining.`);
+                return res.status(429).json({
+                    success: false,
+                    message: `Please wait ${remainingTime} seconds before submitting another color.`,
+                    remainingTime: remainingTime
+                });
+            }
+        }
+
+        // Update last submission time
+        userSubmissionTimes.set(userId, now);
+
         await set(model);
 
         // Broadcast the new global average to all connected clients
@@ -155,8 +256,8 @@ app.put('/api/color', async (req, res) => {
             const color = await getColor();
             const average = await getAverageColor();
             const message = JSON.stringify({
-                color: color,
-                average: average
+                color: '#' + color,
+                average: '#' + average
             });
 
             console.log(`Broadcasting to ${wsConnections.size} clients:`, message);
@@ -200,6 +301,14 @@ function validate(model) {
     const hexPattern = /^[0-9A-Fa-f]{6}$/;
 
     if (!hexPattern.test(hexPart)) {
+        return false;
+    }
+
+    // Validate that the color is in the palette
+    const colorUpper = color.toUpperCase();
+    const isInPalette = PALETTE_DATA.colors.some(c => c.hex.toUpperCase() === colorUpper);
+    if (!isInPalette) {
+        console.log(`Color ${color} not in palette`);
         return false;
     }
 
@@ -284,22 +393,45 @@ async function getColor() {
 
 async function getAverageColor() {
     try {
-        let fromTimestamp = new Date().setHours(0) - 86400000; // 24 hours ago
-        let toTimestamp = new Date().setHours(0);
-        
-        let colorsResponse = await rClient.ts.range(rtsKey, fromTimestamp, toTimestamp, {
-            AGGREGATION: {
-                type: TimeSeriesAggregationType.AVERAGE,
-                timeBucket: 86400000
-            }
-        });
-        
-        if (colorsResponse && colorsResponse.length > 0) {
-            let averageColor = colorsResponse[0].value;
-            return Math.round(averageColor).toString(16).toUpperCase().padStart(6, '0');
-        } else {
+        // Get the last 8 submissions from the sorted set
+        const now = Date.now();
+        const oneDayAgo = now - 86400000;
+
+        // Get all submissions from last 24 hours, sorted by timestamp
+        const submissions = await rClient.zRangeByScore('viridis:submissions', oneDayAgo, now);
+
+        if (!submissions || submissions.length === 0) {
             return randomColorHex();
         }
+
+        // Take only the last 8 submissions
+        const recentSubmissions = submissions.slice(-8);
+
+        // Calculate average RGB
+        let totalR = 0, totalG = 0, totalB = 0;
+
+        for (const submissionStr of recentSubmissions) {
+            const submission = JSON.parse(submissionStr);
+            const colorInt = parseInt(submission.color.replace('#', ''), 16);
+
+            totalR += (colorInt >> 16) & 0xFF;
+            totalG += (colorInt >> 8) & 0xFF;
+            totalB += colorInt & 0xFF;
+        }
+
+        const avgR = Math.round(totalR / recentSubmissions.length);
+        const avgG = Math.round(totalG / recentSubmissions.length);
+        const avgB = Math.round(totalB / recentSubmissions.length);
+
+        // Convert to integer and snap to palette
+        const avgColorInt = (avgR << 16) | (avgG << 8) | avgB;
+        const rawAverage = avgColorInt.toString(16).toUpperCase().padStart(6, '0');
+        const snappedColor = snapToPalette(avgColorInt);
+        const snappedHex = snappedColor.toString(16).toUpperCase().padStart(6, '0');
+
+        console.log(`Global average from last ${recentSubmissions.length} submissions: #${rawAverage} (raw) → #${snappedHex} (snapped to palette)`);
+
+        return snappedHex;
     } catch (error) {
         console.error('Error getting average color:', error);
         return randomColorHex();
@@ -323,6 +455,49 @@ function randomColorHex() {
         code += makeColorCode[Math.floor(Math.random() * 16)];
     }
     return code;
+}
+
+/**
+ * Calculate the Euclidean distance between two colors in RGB space
+ * @param {number} color1 - First color as integer
+ * @param {number} color2 - Second color as integer
+ * @returns {number} Distance between colors
+ */
+function colorDistance(color1, color2) {
+    const r1 = (color1 >> 16) & 0xFF;
+    const g1 = (color1 >> 8) & 0xFF;
+    const b1 = color1 & 0xFF;
+
+    const r2 = (color2 >> 16) & 0xFF;
+    const g2 = (color2 >> 8) & 0xFF;
+    const b2 = color2 & 0xFF;
+
+    // Euclidean distance in RGB space
+    return Math.sqrt(
+        Math.pow(r2 - r1, 2) +
+        Math.pow(g2 - g1, 2) +
+        Math.pow(b2 - b1, 2)
+    );
+}
+
+/**
+ * Snap a color to the nearest color in the palette
+ * @param {number} colorInt - Color as integer (0xRRGGBB)
+ * @returns {number} Nearest palette color as integer
+ */
+function snapToPalette(colorInt) {
+    let minDistance = Infinity;
+    let nearestColor = COLOR_PALETTE[0];
+
+    for (const paletteColor of COLOR_PALETTE) {
+        const distance = colorDistance(colorInt, paletteColor);
+        if (distance < minDistance) {
+            minDistance = distance;
+            nearestColor = paletteColor;
+        }
+    }
+
+    return nearestColor;
 }
 
 /**
@@ -364,13 +539,16 @@ async function getProximityAverageColor(lat, long, radiusKm = 50) {
             return randomColorHex();
         }
 
+        // Take only the last 8 submissions
+        const recentSubmissions = submissions.slice(-8);
+
         // Parse submissions and calculate weighted colors based on proximity
         let totalWeight = 0;
         let weightedR = 0;
         let weightedG = 0;
         let weightedB = 0;
 
-        for (const submissionStr of submissions) {
+        for (const submissionStr of recentSubmissions) {
             const submission = JSON.parse(submissionStr);
             const distance = haversineDistance(lat, long, submission.lat, submission.long);
 
@@ -403,10 +581,12 @@ async function getProximityAverageColor(lat, long, radiusKm = 50) {
         const avgG = Math.round(weightedG / totalWeight);
         const avgB = Math.round(weightedB / totalWeight);
 
-        // Convert back to hex
-        const avgColor = ((avgR << 16) | (avgG << 8) | avgB).toString(16).toUpperCase().padStart(6, '0');
+        // Convert to integer and snap to palette
+        const avgColorInt = (avgR << 16) | (avgG << 8) | avgB;
+        const snappedColor = snapToPalette(avgColorInt);
+        const avgColor = snappedColor.toString(16).toUpperCase().padStart(6, '0');
 
-        console.log(`Proximity average for (${lat}, ${long}): #${avgColor} from ${submissions.length} submissions, ${totalWeight.toFixed(2)} total weight`);
+        console.log(`Proximity average for (${lat}, ${long}): #${avgColor} (snapped from raw average) from ${recentSubmissions.length} recent submissions, ${totalWeight.toFixed(2)} total weight`);
 
         return avgColor;
     } catch (error) {
