@@ -66,12 +66,7 @@
     }
 
     .color-picker-title {
-        font-family: 'Proza Libre', sans-serif;
-        font-size: 16px;
-        font-weight: 400;
-        margin-bottom: 15px;
-        color: rgba(255, 255, 255, 0.9);
-        text-align: center;
+        display: none;
     }
 
     .palette-grid {
@@ -260,13 +255,12 @@
     .drawer-handle {
         position: fixed;
         top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 80px;
+        left: 0;
+        right: 0;
+        width: 100%;
         height: 30px;
         background: rgba(255, 255, 255, 0.2);
         backdrop-filter: blur(10px);
-        border-radius: 0 0 12px 12px;
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -274,8 +268,9 @@
         font-size: 20px;
         transition: all 0.3s;
         z-index: 1002;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        border-top: none;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+        opacity: 1;
+        visibility: visible;
     }
 
     .drawer-handle:hover {
@@ -284,16 +279,16 @@
     }
 
     .drawer-handle.open {
-        border-radius: 0;
-        height: 40px;
+        opacity: 0;
+        visibility: hidden;
     }
 </style>
 
 <body>
     <div id="app" v-bind:style="{backgroundColor: displayColor, color: textColor}">
         <!-- Drawer handle -->
-        <div class="drawer-handle" v-bind:class="{ open: drawerOpen }" v-on:click="toggleDrawer">
-            {{ drawerOpen ? '▲' : '▼' }}
+        <div class="drawer-handle" v-bind:class="{ open: drawerOpen }" v-on:click="openDrawer">
+            ▼
         </div>
 
         <!-- Color picker drawer -->
@@ -478,8 +473,8 @@
                 this.updateColor();
                 this.drawerOpen = false;  // Close drawer after selection
             },
-            toggleDrawer() {
-                this.drawerOpen = !this.drawerOpen;
+            openDrawer() {
+                this.drawerOpen = true;
             },
             async updateColor(event){
                 // Clear any ongoing transition
