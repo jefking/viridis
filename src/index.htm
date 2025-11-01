@@ -47,12 +47,22 @@
     }
 
     .color-picker-container {
-        background: rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        border-radius: 12px;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(15px);
         padding: 20px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-        margin: 20px 0;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        transform: translateY(-100%);
+        transition: transform 0.4s ease-in-out;
+        z-index: 1001;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .color-picker-container.open {
+        transform: translateY(0);
     }
 
     .color-picker-title {
@@ -246,11 +256,48 @@
         color: rgba(255, 255, 255, 1);
         font-weight: 500;
     }
+
+    .drawer-handle {
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80px;
+        height: 30px;
+        background: rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(10px);
+        border-radius: 0 0 12px 12px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        transition: all 0.3s;
+        z-index: 1002;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: none;
+    }
+
+    .drawer-handle:hover {
+        background: rgba(255, 255, 255, 0.3);
+        height: 35px;
+    }
+
+    .drawer-handle.open {
+        border-radius: 0;
+        height: 40px;
+    }
 </style>
 
 <body>
     <div id="app" v-bind:style="{backgroundColor: displayColor, color: textColor}">
-        <div class="color-picker-container">
+        <!-- Drawer handle -->
+        <div class="drawer-handle" v-bind:class="{ open: drawerOpen }" v-on:click="toggleDrawer">
+            {{ drawerOpen ? '▲' : '▼' }}
+        </div>
+
+        <!-- Color picker drawer -->
+        <div class="color-picker-container" v-bind:class="{ open: drawerOpen }">
             <div class="color-picker-title">Select Your Color</div>
             <div class="palette-grid">
                 <div
@@ -307,7 +354,8 @@
                 connectionFailed: false,
                 rainbowInterval: null,
                 palette: [],  // Will be loaded from server
-                displayedColors: []  // 9 randomly selected colors to display
+                displayedColors: [],  // 9 randomly selected colors to display
+                drawerOpen: false  // Drawer state
             };
         },
         computed: {
@@ -428,6 +476,10 @@
             selectColor(hexColor) {
                 this.color = hexColor;
                 this.updateColor();
+                this.drawerOpen = false;  // Close drawer after selection
+            },
+            toggleDrawer() {
+                this.drawerOpen = !this.drawerOpen;
             },
             async updateColor(event){
                 // Clear any ongoing transition
