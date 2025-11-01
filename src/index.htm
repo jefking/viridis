@@ -58,7 +58,7 @@
         transition: transform 0.4s ease-in-out;
         z-index: 1001;
         border-bottom: 2px solid rgba(255, 255, 255, 0.3);
-        max-height: 40vh;
+        height: calc(9vw + 24px);
         overflow: hidden;
     }
 
@@ -72,17 +72,19 @@
 
     .palette-grid {
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 8px;
-        width: calc(100% - 24px);
+        width: 100%;
         padding: 12px;
         margin: 0;
         box-sizing: border-box;
+        height: 100%;
     }
 
     .palette-color {
-        flex: 0 0 auto;
-        width: calc((100% - 24px - (8px * 7)) / 8);
+        flex: 1 1 0;
+        min-width: 0;
+        height: calc(100% - 24px);
         aspect-ratio: 1 / 1;
         border-radius: 12px;
         cursor: pointer;
