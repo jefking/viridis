@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viridis - A Collaborative Color Experience</title>
+    <link href="https://fonts.googleapis.com/css2?family=Proza+Libre:wght@400;600;700&family=Fira+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Proza Libre', sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            transition: background-color 2s ease;
+        }
+
+        .hero-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            text-align: center;
+            position: relative;
+        }
+
+        .hero-title {
+            font-size: clamp(4rem, 12vw, 10rem);
+            font-weight: 700;
+            margin-bottom: 30px;
+            letter-spacing: -0.02em;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1.5rem, 3vw, 2.5rem);
+            font-weight: 400;
+            margin-bottom: 40px;
+            opacity: 0.95;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            animation: fadeInUp 1s ease-out 0.2s backwards;
+        }
+
+        .hero-description {
+            font-size: clamp(1rem, 2vw, 1.5rem);
+            max-width: 800px;
+            line-height: 1.6;
+            margin-bottom: 50px;
+            opacity: 0.9;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            animation: fadeInUp 1s ease-out 0.4s backwards;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 20px 50px;
+            font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 3px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: background-color 1s ease, border-color 1s ease, transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            animation: fadeInUp 1s ease-out 0.6s backwards, breathe 3s ease-in-out infinite;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .cta-button:active {
+            transform: translateY(-2px) scale(1.02);
+        }
+
+        @keyframes breathe {
+            0%, 100% {
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            }
+            50% {
+                box-shadow: 0 8px 48px rgba(0, 0, 0, 0.5);
+            }
+        }
+
+        .status-indicator {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            font-family: 'Fira Mono', monospace;
+            font-size: 14px;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            opacity: 0.8;
+            animation: fadeIn 1s ease-out 0.8s backwards;
+        }
+
+        .pulse {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.9);
+            margin-right: 8px;
+            animation: pulse 2s ease-in-out infinite;
+            transition: background-color 1s ease;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 0.8;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.5;
+                transform: scale(1.2);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="hero-container">
+        <h1 class="hero-title">Viridis</h1>
+        <h2 class="hero-subtitle">A Collaborative Color Experience</h2>
+        <p class="hero-description">
+            Share colors based on your location. Watch as the world blends together in real-time. 
+            Every contribution shapes the global palette. Join the collective canvas.
+        </p>
+        <a href="/experience" class="cta-button">Experience Now</a>
+    </div>
+
+    <div class="status-indicator">
+        <span class="pulse"></span>
+        <span id="status-text">Connecting...</span>
+    </div>
+
+    <script>
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}/ws/color`);
+
+        let currentColor = null;
+        let nextColor = null;
+
+        ws.onopen = () => {
+            document.getElementById('status-text').textContent = 'Live';
+            fetchCurrentColor();
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.average) {
+                    // Set the pulse and button to show the new color
+                    nextColor = data.average;
+                    updatePulseColor(nextColor);
+                    updateButtonColor(nextColor);
+
+                    // After a brief moment, transition the background
+                    setTimeout(() => {
+                        updateBackgroundColor(nextColor);
+                    }, 500);
+                }
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        };
+
+        ws.onerror = () => {
+            document.getElementById('status-text').textContent = 'Disconnected';
+        };
+
+        ws.onclose = () => {
+            document.getElementById('status-text').textContent = 'Reconnecting...';
+            setTimeout(() => window.location.reload(), 3000);
+        };
+
+        async function fetchCurrentColor() {
+            try {
+                const response = await fetch('/api/color');
+                const data = await response.json();
+                if (data.average) {
+                    currentColor = data.average;
+                    updateBackgroundColor(currentColor);
+                    updatePulseColor(currentColor);
+                    updateButtonColor(currentColor);
+                }
+            } catch (error) {
+                console.error('Error fetching color:', error);
+            }
+        }
+
+        function updatePulseColor(color) {
+            const pulse = document.querySelector('.pulse');
+            pulse.style.backgroundColor = color;
+            pulse.style.boxShadow = `0 0 12px ${color}`;
+        }
+        
+        function updateBackgroundColor(color) {
+            document.body.style.backgroundColor = color;
+
+            const rgb = hexToRgb(color);
+            const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+
+            const elements = document.querySelectorAll('.hero-title, .hero-subtitle, .hero-description, .status-indicator');
+            elements.forEach(el => {
+                if (luminance > 0.5) {
+                    el.style.color = 'rgba(0, 0, 0, 0.85)';
+                    el.style.textShadow = '0 2px 10px rgba(255, 255, 255, 0.3)';
+                } else {
+                    el.style.color = 'rgba(255, 255, 255, 0.95)';
+                    el.style.textShadow = '0 2px 10px rgba(0, 0, 0, 0.3)';
+                }
+            });
+        }
+
+        function updateButtonColor(color) {
+            const button = document.querySelector('.cta-button');
+            const rgb = hexToRgb(color);
+            const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
+
+            // Set button to the next color with some transparency
+            button.style.backgroundColor = color;
+            button.style.borderColor = color;
+            button.style.boxShadow = `0 8px 32px ${color}80`;
+
+            // Set text color based on button background luminance
+            if (luminance > 0.5) {
+                button.style.color = 'rgba(0, 0, 0, 0.9)';
+                button.style.textShadow = '0 2px 10px rgba(255, 255, 255, 0.3)';
+            } else {
+                button.style.color = 'rgba(255, 255, 255, 0.95)';
+                button.style.textShadow = '0 2px 10px rgba(0, 0, 0, 0.3)';
+            }
+        }
+        
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : { r: 0, g: 0, b: 0 };
+        }
+    </script>
+</body>
+</html>

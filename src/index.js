@@ -81,8 +81,6 @@ const startRedisTimeSeries = async (client) => {
     }
 };
 
-const html = fs.readFileSync('./index.htm', 'utf-8');
-const testHtml = fs.readFileSync('./color-test.htm', 'utf-8');
 const rClient = redis.createClient(conVars);
 rClient.connect();
 startRedisTimeSeries(rClient);
@@ -94,7 +92,12 @@ const wsInstance = expressWs(app, server);
 console.log('Express-WS initialized:', wsInstance ? 'SUCCESS' : 'FAILED');
 
 app.use(express.json());
-app.use(express.static(__dirname));
+
+// Serve static files from public directory with index.htm as default
+app.use(express.static(path.join(__dirname, 'public'), {
+    extensions: ['htm', 'html'],
+    index: 'index.htm'
+}));
 
 // Track all WebSocket connections for broadcasting
 const wsConnections = new Set();
@@ -125,16 +128,6 @@ app.use((error, req, res, next) => {
         return res.status(400).json({ success: false, message: 'Invalid JSON' });
     }
     next();
-});
-
-app.get('/', (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-});
-
-app.get('/test', (req, res) => {
-    res.setHeader('Content-Type', 'text/html');
-    res.send(testHtml);
 });
 
 app.get('/api/palette', (req, res) => {
